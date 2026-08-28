@@ -1,0 +1,73 @@
+openapi: 3.0.3
+info:
+  title: Vise SMA API (Aluno) — FastAPI
+  version: 1.0.0
+  description: API do aplicativo do aluno. Pontuações e classificações nunca são expostas.
+servers:
+  - url: http://localhost:8000/api/v1
+paths:
+  /login:
+    post:
+      summary: Login CPF + data de nascimento
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cpf, data_nascimento]
+              properties:
+                cpf: { type: string, example: "07593256189" }
+                data_nascimento: { type: string, format: date, example: "2009-10-21" }
+      responses:
+        "200":
+          description: Token opaco + dados do aluno
+  /aplicacoes:
+    get:
+      security: [{ bearerAuth: [] }]
+      summary: Aplicações liberadas + progresso (sem scores)
+      responses:
+        "200": { description: OK }
+  /aplicacoes/{id}/categorias:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: OK }
+  /aplicacoes/{id}/categorias/{categoria}/perguntas:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: categoria
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Perguntas e opções sem pontuação
+  /aplicacoes/{id}/respostas/lote:
+    post:
+      security: [{ bearerAuth: [] }]
+      summary: Sync da outbox local
+      responses:
+        "200": { description: sincronizado }
+  /aplicacoes/{id}/finalizar:
+    post:
+      security: [{ bearerAuth: [] }]
+      summary: Finaliza e calcula resultado no servidor
+      responses:
+        "200":
+          description: "{ status: concluido }"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
