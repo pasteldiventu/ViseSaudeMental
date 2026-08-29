@@ -131,17 +131,17 @@ class Aluno(TimestampMixin, SoftDeleteMixin, Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     nome: Mapped[str] = mapped_column(String(255))
-    sexo: Mapped[str] = mapped_column(String(30))
+    sexo: Mapped[str | None] = mapped_column(String(30), nullable=True)
     data_nascimento: Mapped[date] = mapped_column(Date)
     cpf: Mapped[str] = mapped_column(String(11))
-    matricula: Mapped[str] = mapped_column(String(100))
+    matricula: Mapped[str | None] = mapped_column(String(100), nullable=True)
     turma_id: Mapped[int | None] = mapped_column(
         ForeignKey("turmas.id"), nullable=True, index=True
     )
     escola_id: Mapped[int] = mapped_column(ForeignKey("escolas.id"), index=True)
-    telefone: Mapped[str] = mapped_column(String(30))
-    responsavel: Mapped[str] = mapped_column(String(255))
-    contato_responsavel: Mapped[str] = mapped_column(String(255))
+    telefone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    responsavel: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    contato_responsavel: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     turma: Mapped["Turma | None"] = relationship(back_populates="alunos")
     escola: Mapped["Escola"] = relationship(back_populates="alunos")
@@ -166,7 +166,7 @@ class Questionario(TimestampMixin, SoftDeleteMixin, Base):
     status: Mapped[str] = mapped_column(
         String(30), default="rascunho", server_default="rascunho"
     )
-    publico_alvo: Mapped[str] = mapped_column(String(255))
+    publico_alvo: Mapped[str | None] = mapped_column(String(255), nullable=True)
     versao: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     parent_id: Mapped[int | None] = mapped_column(
         ForeignKey("questionarios.id"), nullable=True, index=True
@@ -200,9 +200,9 @@ class Categoria(TimestampMixin, SoftDeleteMixin, Base):
     escola_id: Mapped[int] = mapped_column(ForeignKey("escolas.id"), index=True)
     nome: Mapped[str] = mapped_column(String(255))
     ordem: Mapped[int] = mapped_column(Integer)
-    cor: Mapped[str] = mapped_column(String(30))
-    mensagem_avatar: Mapped[str] = mapped_column(Text)
-    imagem_apoio: Mapped[str] = mapped_column(String(500))
+    cor: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    mensagem_avatar: Mapped[str | None] = mapped_column(Text, nullable=True)
+    imagem_apoio: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     questionario: Mapped["Questionario"] = relationship(back_populates="categorias")
     escola: Mapped["Escola"] = relationship(back_populates="categorias")
@@ -247,7 +247,7 @@ class Pergunta(TimestampMixin, SoftDeleteMixin, Base):
     peso: Mapped[Decimal] = mapped_column(
         Numeric(8, 2), default=Decimal("1.00"), server_default="1.00"
     )
-    imagem: Mapped[str] = mapped_column(String(500))
+    imagem: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     categoria: Mapped["Categoria"] = relationship(back_populates="perguntas")
     subcategoria: Mapped["Subcategoria | None"] = relationship(
@@ -269,8 +269,8 @@ class OpcaoResposta(TimestampMixin, SoftDeleteMixin, Base):
     descricao: Mapped[str] = mapped_column(String(500))
     pontuacao: Mapped[int] = mapped_column(Integer)
     ordem: Mapped[int] = mapped_column(Integer)
-    cor: Mapped[str] = mapped_column(String(30))
-    emoji: Mapped[str] = mapped_column(String(50))
+    cor: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    emoji: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     pergunta: Mapped["Pergunta"] = relationship(back_populates="opcoes_resposta")
     escola: Mapped["Escola"] = relationship(back_populates="opcoes_resposta")
@@ -291,7 +291,7 @@ class RegraClassificacao(TimestampMixin, SoftDeleteMixin, Base):
     min_score: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     max_score: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     rotulo: Mapped[str] = mapped_column(String(255))
-    descricao: Mapped[str] = mapped_column(Text)
+    descricao: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     escola: Mapped["Escola"] = relationship(back_populates="regras_classificacao")
     categoria: Mapped["Categoria | None"] = relationship(
@@ -317,8 +317,8 @@ class AplicacaoQuestionario(TimestampMixin, SoftDeleteMixin, Base):
     aluno_id: Mapped[int | None] = mapped_column(
         ForeignKey("alunos.id"), nullable=True, index=True
     )
-    inicia_em: Mapped[datetime] = mapped_column(DateTime)
-    termina_em: Mapped[datetime] = mapped_column(DateTime)
+    inicia_em: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    termina_em: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     status: Mapped[str] = mapped_column(
         String(30), default="ativa", server_default="ativa"
     )
@@ -350,8 +350,8 @@ class Resposta(TimestampMixin, Base):
         ForeignKey("opcoes_resposta.id"), nullable=True, index=True
     )
     texto: Mapped[str | None] = mapped_column(Text, nullable=True)
-    tempo_gasto_ms: Mapped[int] = mapped_column(Integer)
-    dispositivo: Mapped[str] = mapped_column(String(255))
+    tempo_gasto_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    dispositivo: Mapped[str | None] = mapped_column(String(255), nullable=True)
     responded_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     client_uuid: Mapped[str | None] = mapped_column(String(36), nullable=True)
 
@@ -394,7 +394,7 @@ class Avatar(TimestampMixin, Base):
     )
     nome: Mapped[str] = mapped_column(String(255))
     imagem_path: Mapped[str] = mapped_column(String(500))
-    mensagem_padrao: Mapped[str] = mapped_column(Text)
+    mensagem_padrao: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     escola: Mapped["Escola | None"] = relationship(back_populates="avatars")
 
@@ -409,8 +409,8 @@ class TermoAceite(Base):
     aluno_id: Mapped[int] = mapped_column(ForeignKey("alunos.id"), index=True)
     versao: Mapped[int] = mapped_column(Integer)
     texto_hash: Mapped[str] = mapped_column(String(64))
-    ip: Mapped[str] = mapped_column(String(45))
-    user_agent: Mapped[str] = mapped_column(Text)
+    ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
     accepted_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     aluno: Mapped["Aluno"] = relationship(back_populates="termos_aceite")

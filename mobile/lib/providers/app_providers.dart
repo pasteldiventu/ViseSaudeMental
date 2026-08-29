@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -18,7 +19,12 @@ final databaseProvider = Provider<AppDatabase>((ref) {
 });
 
 final secureStorageProvider = Provider<FlutterSecureStorage>(
-  (ref) => const FlutterSecureStorage(),
+  (ref) => const FlutterSecureStorage(
+    webOptions: WebOptions(
+      dbName: 'vise_sma_secure',
+      publicKey: 'vise_sma_web',
+    ),
+  ),
 );
 
 final apiClientProvider = Provider<ApiClient>(
@@ -76,7 +82,8 @@ class AppController extends ChangeNotifier {
   final AppDatabase database;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
-  bool carregando = true;
+  bool inicializando = true;
+  bool carregando = false;
   bool autenticado = false;
   bool termoAceito = false;
   bool avatarIntroduzido = false;
@@ -89,7 +96,7 @@ class AppController extends ChangeNotifier {
       await _selecionarAplicacao();
       await _carregarTermoAceito();
     }
-    carregando = false;
+    inicializando = false;
     notifyListeners();
   }
 
@@ -108,7 +115,14 @@ class AppController extends ChangeNotifier {
       avatarIntroduzido = false;
       if (!autenticado) erro = 'Nenhum questionário disponível.';
       return autenticado;
-    } catch (_) {
+    } on DioException catch (error, stack) {
+      debugPrint('Falha no login: $error\n$stack');
+      erro = error.response?.statusCode == 422
+          ? 'CPF ou data de nascimento não conferem.'
+          : 'Não foi possível entrar. Verifique os dados e a conexão.';
+      return false;
+    } catch (error, stack) {
+      debugPrint('Falha no login: $error\n$stack');
       erro = 'Não foi possível entrar. Verifique os dados e a conexão.';
       return false;
     } finally {

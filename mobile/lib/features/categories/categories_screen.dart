@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../data/local/app_database.dart';
 import '../../providers/app_providers.dart';
+import '../common/brand_and_progress.dart';
+import '../common/tactile_button.dart';
 import '../finish/finish_screen.dart';
 import '../questions/question_screen.dart';
 
@@ -12,12 +15,21 @@ class CategoriesScreen extends ConsumerWidget {
 
   final int aplicacaoId;
 
+  static const _icons = <IconData>[
+    Icons.spa_outlined,
+    Icons.nightlight_round,
+    Icons.favorite_outline_rounded,
+    Icons.psychology_outlined,
+    Icons.wb_sunny_outlined,
+    Icons.auto_awesome_outlined,
+  ];
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final database = ref.watch(databaseProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('CATEGORIAS'),
+        title: const Text('CAMINHO'),
         actions: [
           PopupMenuButton<String>(
             onSelected: (value) async {
@@ -41,7 +53,7 @@ class CategoriesScreen extends ConsumerWidget {
               ),
               PopupMenuItem(value: 'logout', child: Text('Sair')),
             ],
-            icon: const Icon(Icons.more_vert),
+            icon: const Icon(Icons.menu_rounded),
           ),
         ],
       ),
@@ -62,62 +74,130 @@ class CategoriesScreen extends ConsumerWidget {
                   if (groups == null) {
                     return const Center(child: CircularProgressIndicator());
                   }
+
+                  final doneFlags = <bool>[];
+                  for (var i = 0; i < categories.length; i++) {
+                    final questions = groups[i];
+                    final done =
+                        questions.isNotEmpty &&
+                        questions.every(
+                          (q) => progress.any((a) => a.perguntaId == q.id),
+                        );
+                    doneFlags.add(done);
+                  }
+                  final doneCount = doneFlags.where((d) => d).length;
                   final allDone =
-                      groups.isNotEmpty &&
-                      groups.every(
-                        (questions) =>
-                            questions.isNotEmpty &&
-                            questions.every(
-                              (question) => progress.any(
-                                (answer) => answer.perguntaId == question.id,
-                              ),
-                            ),
-                      );
+                      categories.isNotEmpty &&
+                      doneFlags.every((d) => d) &&
+                      groups.every((g) => g.isNotEmpty);
+                  final currentIndex = doneFlags.indexWhere((d) => !d);
+
                   return ListView(
-                    padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 36),
                     children: [
-                      const Text(
-                        'Escolha uma categoria para continuar.',
-                        style: TextStyle(color: AppColors.muted, fontSize: 16),
+                      ProgressBanner(
+                        eyebrow: 'Questionário',
+                        title: 'Cuide de você,\numa etapa de cada vez.',
+                        progressLabel: categories.isEmpty
+                            ? 'Nenhuma etapa disponível'
+                            : '$doneCount de ${categories.length} etapas',
+                        value: categories.isEmpty
+                            ? 0
+                            : doneCount / categories.length,
                       ),
-                      const SizedBox(height: 14),
-                      for (var i = 0; i < categories.length; i++)
-                        _CategoryCard(
-                          letter: String.fromCharCode(65 + i),
-                          category: categories[i],
-                          questions: groups[i],
-                          answered: progress
-                              .where(
-                                (item) => item.categoriaId == categories[i].id,
-                              )
-                              .length,
+                      if (currentIndex >= 0 && !allDone) ...[
+                        const SizedBox(height: 14),
+                        SoftPromptCard(
+                          title: 'Continuar: ${categories[currentIndex].titulo}',
+                          actionLabel: 'Abrir →',
                           onTap: () => Navigator.of(context).push(
                             MaterialPageRoute<void>(
                               builder: (_) => QuestionScreen(
                                 aplicacaoId: aplicacaoId,
-                                categoria: categories[i],
+                                categoria: categories[currentIndex],
                               ),
                             ),
                           ),
                         ),
+                      ],
+                      const SizedBox(height: 22),
+                      Text(
+                        'Etapas',
+                        style: GoogleFonts.figtree(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                          color: AppColors.muted,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                       if (categories.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 80),
-                          child: Center(
-                            child: Text('Nenhuma categoria disponível.'),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 40),
+                          child: Text(
+                            'Nenhuma categoria disponível.',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.figtree(color: AppColors.muted),
                           ),
+                        )
+                      else
+                        GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: categories.length,
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                                childAspectRatio: 0.92,
+                              ),
+                          itemBuilder: (context, i) {
+                            final answered = progress
+                                .where(
+                                  (item) =>
+                                      item.categoriaId == categories[i].id,
+                                )
+                                .length;
+                            return _PastelCategoryCard(
+                              title: categories[i].titulo,
+                              subtitle: groups[i].isEmpty
+                                  ? 'Sem perguntas'
+                                  : doneFlags[i]
+                                  ? 'Concluído'
+                                  : '$answered de ${groups[i].length}',
+                              color: AppColors.pastelFor(i),
+                              icon: _icons[i % _icons.length],
+                              done: doneFlags[i],
+                              highlight: i == currentIndex && !allDone,
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => QuestionScreen(
+                                    aplicacaoId: aplicacaoId,
+                                    categoria: categories[i],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       if (allDone) ...[
-                        const SizedBox(height: 12),
-                        FilledButton.icon(
+                        const SizedBox(height: 18),
+                        TactileButton(
                           onPressed: () => Navigator.of(context).push(
                             MaterialPageRoute<void>(
                               builder: (_) =>
                                   FinishScreen(aplicacaoId: aplicacaoId),
                             ),
                           ),
-                          icon: const Icon(Icons.check_circle_outline),
-                          label: const Text('Finalizar questionário'),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.check_circle_rounded),
+                              SizedBox(width: 10),
+                              Text('Concluir questionário'),
+                            ],
+                          ),
                         ),
                       ],
                     ],
@@ -132,75 +212,76 @@ class CategoriesScreen extends ConsumerWidget {
   }
 }
 
-class _CategoryCard extends StatelessWidget {
-  const _CategoryCard({
-    required this.letter,
-    required this.category,
-    required this.questions,
-    required this.answered,
+class _PastelCategoryCard extends StatelessWidget {
+  const _PastelCategoryCard({
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.icon,
+    required this.done,
+    required this.highlight,
     required this.onTap,
   });
 
-  final String letter;
-  final CachedCategoriaData category;
-  final List<CachedPerguntaData> questions;
-  final int answered;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final IconData icon;
+  final bool done;
+  final bool highlight;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final total = questions.length;
-    final value = total == 0 ? 0.0 : (answered / total).clamp(0.0, 1.0);
-    final done = total > 0 && answered >= total;
-    return Card(
-      margin: const EdgeInsets.only(bottom: 14),
+    return Material(
+      color: color,
+      borderRadius: BorderRadius.circular(AppRadii.lg),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadii.lg),
+            border: highlight
+                ? Border.all(color: AppColors.mintDeep, width: 2.5)
+                : null,
+          ),
+          padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  CircleAvatar(
-                    backgroundColor: AppColors.mint,
-                    foregroundColor: const Color(0xFF07150D),
-                    child: Text(
-                      letter,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                  Icon(icon, color: AppColors.ink.withValues(alpha: 0.55), size: 26),
+                  const Spacer(),
+                  if (done)
+                    const Icon(
+                      Icons.check_circle_rounded,
+                      color: AppColors.mintDeep,
+                      size: 22,
                     ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Text(
-                      category.titulo,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  const Icon(Icons.chevron_right, color: AppColors.mint),
                 ],
               ),
-              const SizedBox(height: 14),
-              LinearProgressIndicator(
-                value: value,
-                minHeight: 7,
-                borderRadius: BorderRadius.circular(8),
-                backgroundColor: Colors.white12,
+              const Spacer(),
+              Text(
+                title,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.figtree(
+                  color: AppColors.ink,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  height: 1.15,
+                  letterSpacing: -0.3,
+                ),
               ),
-              const SizedBox(height: 7),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  done ? 'Concluído' : '$answered de $total',
-                  style: TextStyle(
-                    color: done ? AppColors.mint : AppColors.muted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+              const SizedBox(height: 6),
+              Text(
+                subtitle,
+                style: GoogleFonts.figtree(
+                  color: AppColors.ink.withValues(alpha: 0.55),
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],

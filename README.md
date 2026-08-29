@@ -1,18 +1,18 @@
 # Vise Saúde Mental
 
-Monorepo: **FastAPI (Python) + SQLAdmin + MySQL** (`backend/`) e **Flutter** local-first (`mobile/`).
-
-O backend Laravel anterior ficou arquivado em `backend-laravel/` (referência).
+Monorepo: **FastAPI (Python) + SQLAdmin + MySQL** (`backend/`) e **Flutter** local-first (`mobile/`) — Android + **Web**.
 
 ## Subir o backend (Docker)
 
 ```bash
-cd /home/jp/ViseProjetos/ViseSaudeMental
+cd ViseSaudeMental
 cp backend/.env.example backend/.env
 docker compose up --build -d
 ```
 
 O entrypoint aguarda o MySQL, cria tabelas, roda o seed e sobe o Uvicorn na porta **8000**.
+
+> No Windows, se a porta `3306` estiver ocupada por um MySQL local, o Compose publica o MySQL do Docker em **`3307`**.
 
 | Recurso | URL / dado |
 |---|---|
@@ -31,17 +31,48 @@ docker compose exec app python scripts/legado_import.py
 docker compose logs -f app
 ```
 
-## App Flutter
+## App Flutter (Android + Web)
 
-Sem mudanças de contrato — continua apontando para `/api/v1`.
+Mesmo código em `mobile/`. Contrato da API: `/api/v1`.
 
 ```bash
 cd mobile
 flutter pub get
-flutter run
 ```
 
-Fluxo: **login → termo → avatar → categorias → perguntas** (SQLite) → sync em lote → finalizar.
+### Web (MVP)
+
+Com o backend no ar:
+
+```bash
+flutter run -d chrome
+# ou
+flutter run -d edge
+```
+
+API padrão na web: `http://localhost:8000/api/v1`.
+
+Build estático:
+
+```bash
+flutter build web --release
+# saída em mobile/build/web
+```
+
+### Android
+
+```bash
+flutter run
+# emulador usa http://10.0.2.2:8000/api/v1 por padrão
+```
+
+Device físico / outra URL:
+
+```bash
+flutter run --dart-define=API_BASE_URL=http://SEU_IP:8000/api/v1
+```
+
+Fluxo: **login → termo → avatar → categorias → perguntas** (SQLite / IndexedDB na web) → sync em lote → finalizar.
 
 ## Domínio
 
@@ -53,7 +84,7 @@ Fluxo: **login → termo → avatar → categorias → perguntas** (SQLite) → 
 
 ## CMS
 
-Painel **SQLAdmin** em `/admin` (substitui Filament): escolas, vínculos, turmas, alunos, questionários, categorias, perguntas, opções, aplicações, respostas, resultados, avatares.
+Painel **SQLAdmin** em `/admin`: escolas, vínculos, turmas, alunos, questionários, categorias, perguntas, opções, aplicações, respostas, resultados, avatares.
 
 ## OpenAPI
 

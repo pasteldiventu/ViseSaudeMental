@@ -16,7 +16,17 @@ part 'app_database.g.dart';
   ],
 )
 class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(driftDatabase(name: 'vise_sma'));
+  AppDatabase()
+    : super(
+        driftDatabase(
+          name: 'vise_sma',
+          web: DriftWebOptions(
+            sqlite3Wasm: Uri.parse('sqlite3.wasm'),
+            // Regenerar: dart compile js -O2 -o web/drift_worker.js tool/drift_worker.dart
+            driftWorker: Uri.parse('drift_worker.js'),
+          ),
+        ),
+      );
 
   @override
   int get schemaVersion => 1;

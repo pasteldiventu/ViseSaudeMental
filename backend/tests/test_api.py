@@ -78,6 +78,11 @@ def _seed_minimo(db: Session) -> tuple[Aluno, AplicacaoQuestionario, Pergunta, O
         data_nascimento=date(2009, 10, 21),
         escola_id=escola.id,
         turma_id=None,
+        matricula="T001",
+        sexo="outro",
+        telefone="11999990000",
+        responsavel="Responsável",
+        contato_responsavel="11988880000",
     )
     db.add_all([turma, aluno])
     db.flush()

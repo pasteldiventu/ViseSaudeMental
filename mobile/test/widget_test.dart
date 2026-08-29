@@ -13,6 +13,6 @@ void main() {
     );
 
     expect(find.text('Olá!'), findsOneWidget);
-    expect(find.byIcon(Icons.sentiment_satisfied_alt_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.favorite_rounded), findsOneWidget);
   });
 }

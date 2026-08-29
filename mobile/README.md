@@ -1,17 +1,15 @@
-# vise_sma_app
+# App Flutter — Vise SMA
 
-A new Flutter project.
+Cliente do aluno (Android + Web), local-first com Drift/SQLite e sync em lote.
 
-## Getting Started
+## Rodar
 
-This project is a starting point for a Flutter application.
+Backend precisa estar em `http://localhost:8000` (ver README da raiz).
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+flutter pub get
+flutter run -d chrome   # web
+flutter run             # android
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Demo: CPF `07593256189` · nascimento `2009-10-21`.

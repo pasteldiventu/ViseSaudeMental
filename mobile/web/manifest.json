@@ -1,0 +1,35 @@
+{
+    "name": "Vise Saúde Mental",
+    "short_name": "Vise SMA",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#12191F",
+    "theme_color": "#2ECC71",
+    "description": "Questionário de saúde mental para adolescentes",
+    "orientation": "any",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}

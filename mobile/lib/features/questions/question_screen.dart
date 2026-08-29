@@ -1,12 +1,12 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../data/local/app_database.dart';
 import '../../providers/app_providers.dart';
 import '../common/avatar_bubble.dart';
+import '../common/tactile_button.dart';
 
 class QuestionScreen extends ConsumerStatefulWidget {
   const QuestionScreen({
@@ -78,11 +78,11 @@ class _QuestionScreenState extends ConsumerState<QuestionScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Resposta salva no aparelho.'),
+        content: Text('Resposta salva neste dispositivo.'),
         duration: Duration(milliseconds: 700),
       ),
     );
-    await Future<void>.delayed(const Duration(milliseconds: 180));
+    await Future<void>.delayed(const Duration(milliseconds: 220));
     if (!mounted) return;
     if (_index == _questions.length - 1) {
       Navigator.of(context).pop();
@@ -127,45 +127,59 @@ class _QuestionScreenState extends ConsumerState<QuestionScreen> {
         _options.isEmpty ||
         _question.tipo.toLowerCase().contains('text') ||
         _question.tipo.toLowerCase().contains('aberta');
+    final progress = (_index + 1) / _questions.length;
+
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
           onPressed: _previous,
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back_rounded),
         ),
         title: Text(widget.categoria.titulo),
       ),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
           children: [
             Row(
               children: [
                 Expanded(
-                  child: LinearProgressIndicator(
-                    value: (_index + 1) / _questions.length,
-                    minHeight: 8,
-                    borderRadius: BorderRadius.circular(8),
-                    backgroundColor: Colors.white12,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(99),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 10,
+                      backgroundColor: AppColors.pathLine,
+                      color: AppColors.mint,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Text(
                   '${_index + 1}/${_questions.length}',
-                  style: const TextStyle(color: AppColors.muted),
+                  style: GoogleFonts.figtree(
+                    color: AppColors.muted,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 22),
-            if (_imagePath != null) ...[
+            if (_imageUrl != null) ...[
               ClipRRect(
-                borderRadius: BorderRadius.circular(18),
-                child: _buildImage(_imagePath!),
+                borderRadius: BorderRadius.circular(20),
+                child: Image.network(
+                  _imageUrl!,
+                  height: 180,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 18),
             ],
-            AvatarBubble(message: _question.texto),
-            const SizedBox(height: 28),
+            AvatarBubble(message: _question.texto, large: true),
+            const SizedBox(height: 26),
             if (isText) ...[
               TextField(
                 controller: _text,
@@ -178,55 +192,22 @@ class _QuestionScreenState extends ConsumerState<QuestionScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              FilledButton(
+              TactileButton(
+                enabled: !_saving,
                 onPressed: _saving ? null : () => _answer(text: _text.text),
                 child: const Text('Enviar resposta'),
               ),
             ] else
               for (var i = 0; i < _options.length; i++)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: OutlinedButton(
-                    onPressed: _saving
-                        ? null
-                        : () => _answer(optionId: _options[i].id),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      alignment: Alignment.centerLeft,
-                      padding: const EdgeInsets.all(15),
-                      side: BorderSide(
-                        color: _selected == _options[i].id
-                            ? AppColors.mint
-                            : const Color(0xFF42606B),
-                        width: _selected == _options[i].id ? 2 : 1,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 17,
-                          backgroundColor: _selected == _options[i].id
-                              ? AppColors.mint
-                              : Colors.white10,
-                          foregroundColor: _selected == _options[i].id
-                              ? const Color(0xFF07150D)
-                              : Colors.white,
-                          child: Text(String.fromCharCode(65 + i)),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Text(
-                            '${_options[i].emoji ?? ''} ${_options[i].descricao}'
-                                .trim(),
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                TactileOption(
+                  letter: String.fromCharCode(65 + i),
+                  label: '${_options[i].emoji ?? ''} ${_options[i].descricao}'
+                      .trim(),
+                  selected: _selected == _options[i].id,
+                  enabled: !_saving,
+                  onPressed: _saving
+                      ? null
+                      : () => _answer(optionId: _options[i].id),
                 ),
           ],
         ),
@@ -234,22 +215,15 @@ class _QuestionScreenState extends ConsumerState<QuestionScreen> {
     );
   }
 
-  String? get _imagePath =>
-      _question.imagemLocal ??
-      _question.imagemUrl ??
-      widget.categoria.imagemLocal ??
-      widget.categoria.imagemUrl;
-
-  Widget _buildImage(String path) {
-    final provider = path.startsWith('http')
-        ? NetworkImage(path) as ImageProvider
-        : FileImage(File(path));
-    return Image(
-      image: provider,
-      height: 180,
-      width: double.infinity,
-      fit: BoxFit.cover,
-      errorBuilder: (_, _, _) => const SizedBox.shrink(),
-    );
+  String? get _imageUrl {
+    for (final candidate in [
+      _question.imagemUrl,
+      widget.categoria.imagemUrl,
+      _question.imagemLocal,
+      widget.categoria.imagemLocal,
+    ]) {
+      if (candidate != null && candidate.startsWith('http')) return candidate;
+    }
+    return null;
   }
 }

@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../data/repositories/sync_repository.dart';
 import '../../providers/app_providers.dart';
 import '../common/avatar_bubble.dart';
+import '../common/tactile_button.dart';
 
 class FinishScreen extends ConsumerStatefulWidget {
   const FinishScreen({super.key, required this.aplicacaoId});
@@ -59,44 +61,81 @@ class _FinishScreenState extends ConsumerState<FinishScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('CONCLUÍDO')),
+      appBar: AppBar(title: const Text('PRONTO')),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const AvatarBubble(
-                message:
-                    'Muito obrigado por responder! Suas respostas foram guardadas com segurança.',
-              ),
-              const SizedBox(height: 38),
-              Icon(_icon, color: _color, size: 38),
-              const SizedBox(height: 10),
+              const Spacer(),
               Text(
-                _label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: _color,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                'Obrigado por\nparticipar.',
+                style: GoogleFonts.figtree(
+                  fontSize: 36,
+                  fontWeight: FontWeight.w800,
+                  height: 1.05,
+                  letterSpacing: -1.1,
                 ),
               ),
-              const SizedBox(height: 28),
-              FilledButton.icon(
-                onPressed: _syncState == SyncState.syncing ? null : _sync,
-                icon: _syncState == SyncState.syncing
-                    ? const SizedBox.square(
-                        dimension: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.cloud_upload_outlined),
-                label: const Text('Enviar ao servidor'),
+              const SizedBox(height: 18),
+              const AvatarBubble(
+                message:
+                    'Suas respostas foram guardadas com cuidado. '
+                    'Elas ajudam a equipe a cuidar melhor da sua escola.',
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 22),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.pastelMint,
+                  borderRadius: BorderRadius.circular(AppRadii.md),
+                ),
+                child: Row(
+                  children: [
+                    Icon(_icon, color: AppColors.ink, size: 22),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _label,
+                        style: GoogleFonts.figtree(
+                          color: AppColors.ink,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              TactileButton(
+                enabled: _syncState != SyncState.syncing,
+                onPressed: _syncState == SyncState.syncing ? null : _sync,
+                child: _syncState == SyncState.syncing
+                    ? const SizedBox.square(
+                        dimension: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.4,
+                          color: Color(0xFF062016),
+                        ),
+                      )
+                    : const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.cloud_upload_rounded),
+                          SizedBox(width: 10),
+                          Text('Enviar ao servidor'),
+                        ],
+                      ),
+              ),
+              const SizedBox(height: 10),
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Voltar às categorias'),
+                child: const Text('Voltar às etapas'),
               ),
             ],
           ),
@@ -108,20 +147,14 @@ class _FinishScreenState extends ConsumerState<FinishScreen> {
   String get _label => switch (_syncState) {
     SyncState.syncing => 'Enviando respostas…',
     SyncState.synced => 'Respostas sincronizadas',
-    SyncState.error => 'Salvo no aparelho — envio pendente',
-    SyncState.local => 'Salvo no aparelho',
+    SyncState.error => 'Salvo neste dispositivo — envio pendente',
+    SyncState.local => 'Salvo neste dispositivo',
   };
 
   IconData get _icon => switch (_syncState) {
-    SyncState.syncing => Icons.sync,
-    SyncState.synced => Icons.cloud_done_outlined,
-    SyncState.error => Icons.cloud_off_outlined,
-    SyncState.local => Icons.phone_android,
-  };
-
-  Color get _color => switch (_syncState) {
-    SyncState.error => Colors.orangeAccent,
-    SyncState.local => AppColors.muted,
-    _ => AppColors.mint,
+    SyncState.syncing => Icons.sync_rounded,
+    SyncState.synced => Icons.cloud_done_rounded,
+    SyncState.error => Icons.cloud_off_rounded,
+    SyncState.local => Icons.bookmark_added_rounded,
   };
 }

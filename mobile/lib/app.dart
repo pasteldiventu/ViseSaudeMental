@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/app_theme.dart';
 import 'features/auth/login_screen.dart';
 import 'features/avatar/avatar_intro_screen.dart';
 import 'features/categories/categories_screen.dart';
+import 'features/common/responsive_shell.dart';
 import 'features/termo/termo_screen.dart';
 import 'providers/app_providers.dart';
 
@@ -29,13 +31,25 @@ class _ViseAppState extends ConsumerState<ViseApp> {
       title: 'Vise Saúde Mental',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
+      locale: const Locale('pt', 'BR'),
+      supportedLocales: const [Locale('pt', 'BR')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      builder: (context, child) => ResponsiveShell(child: child ?? const SizedBox.shrink()),
       home: _home(controller),
     );
   }
 
   Widget _home(AppController controller) {
-    if (controller.carregando) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (controller.inicializando) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.mint),
+        ),
+      );
     }
     if (!controller.autenticado || controller.aplicacaoId == null) {
       return const LoginScreen();

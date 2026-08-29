@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
@@ -77,7 +78,7 @@ class QuizRepository {
           final questionImage = _nullable(
             question['imagem'] ?? question['imagem_url'],
           );
-          final optionsJson = _nestedList(
+          final optionsJson = ApiClient.listFrom(
             question['opcoes'] ?? question['opcoes_resposta'],
           );
           perguntas.add(
@@ -176,7 +177,7 @@ class QuizRepository {
   }
 
   Future<String?> _downloadImage(String? url) async {
-    if (url == null || !url.startsWith('http')) return null;
+    if (kIsWeb || url == null || !url.startsWith('http')) return null;
     try {
       final directory = await getApplicationSupportDirectory();
       final imageDirectory = Directory(p.join(directory.path, 'instrumentos'));
@@ -192,19 +193,9 @@ class QuizRepository {
         await api.dio.download(url, file.path);
       }
       return file.path;
-    } on DioException {
-      return null;
-    } on FileSystemException {
+    } catch (_) {
       return null;
     }
-  }
-
-  static List<Map<String, dynamic>> _nestedList(dynamic source) {
-    if (source is! List) return const [];
-    return source
-        .whereType<Map>()
-        .map((item) => Map<String, dynamic>.from(item))
-        .toList();
   }
 
   static int _int(dynamic value, [int fallback = 0]) =>

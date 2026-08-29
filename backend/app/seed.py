@@ -101,7 +101,9 @@ def seed_demo(db: Session) -> None:
             matricula="DEMO001",
             turma_id=turma.id,
             escola_id=escola.id,
+            telefone="11999990000",
             responsavel="Responsável Demo",
+            contato_responsavel="11988880000",
         )
         db.add(aluno)
         db.flush()

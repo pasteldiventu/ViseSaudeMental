@@ -31,17 +31,24 @@ class ApiClient {
   final Dio dio;
 
   static List<Map<String, dynamic>> listFrom(dynamic data, [String? key]) {
-    dynamic source = data;
-    if (source is Map && source['data'] is Map) source = source['data'];
-    if (key != null && source is Map) source = source[key];
-    final list = source is Map && source['data'] is List
-        ? source['data']
-        : source is List
-        ? source
-        : const [];
-    return list
-        .whereType<Map>()
-        .map((item) => Map<String, dynamic>.from(item))
-        .toList();
+    var source = data;
+    if (source is Map) {
+      if (key != null && source[key] != null) {
+        source = source[key];
+      } else if (source['data'] != null) {
+        source = source['data'];
+      }
+    }
+    if (source is Map && source['data'] != null) {
+      source = source['data'];
+    }
+    if (source is! Iterable) return const [];
+    final result = <Map<String, dynamic>>[];
+    for (final item in source) {
+      if (item is Map) {
+        result.add(Map<String, dynamic>.from(item));
+      }
+    }
+    return result;
   }
 }

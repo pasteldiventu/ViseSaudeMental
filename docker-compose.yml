@@ -6,7 +6,7 @@ services:
       MYSQL_USER: vise
       MYSQL_PASSWORD: vise
       MYSQL_ROOT_PASSWORD: root
-    ports: ["3306:3306"]
+    ports: ["3307:3306"]
     volumes: [mysql_data:/var/lib/mysql]
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
