@@ -89,3 +89,7 @@ Painel **SQLAdmin** em `/admin`: escolas, vínculos, turmas, alunos, questionár
 ## OpenAPI
 
 Nativo do FastAPI em `/docs` e `/redoc`. Espelho resumido em [`docs/openapi.yaml`](docs/openapi.yaml).
+
+## Planejamento
+
+Backlog e sprints (sequência de tasks): [`docs/SPRINTS.md`](docs/SPRINTS.md). Spec de produto: [`docs/Doc_Refatoracao_SMD.docx`](docs/Doc_Refatoracao_SMD.docx).
