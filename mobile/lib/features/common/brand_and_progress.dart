@@ -6,33 +6,41 @@ import '../../core/theme/app_theme.dart';
 class ViseBrandMark extends StatelessWidget {
   const ViseBrandMark({super.key, this.compact = false});
 
+  static const assetPath = 'assets/branding/logo.jpeg';
+
   final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Vise',
-          style: GoogleFonts.figtree(
-            fontSize: compact ? 28 : 44,
-            fontWeight: FontWeight.w800,
-            height: 0.95,
-            color: AppColors.mint,
-            letterSpacing: -1.2,
+    final height = compact ? 72.0 : 120.0;
+    return Semantics(
+      label: 'VISE-MT — Vigilância e Monitoramento em Saúde do Escolar',
+      image: true,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadii.lg),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadii.lg),
+            child: Image.asset(
+              assetPath,
+              height: height,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+            ),
           ),
         ),
-        Text(
-          'Saúde Mental',
-          style: GoogleFonts.figtree(
-            fontSize: compact ? 14 : 17,
-            fontWeight: FontWeight.w600,
-            color: AppColors.text,
-            height: 1.2,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

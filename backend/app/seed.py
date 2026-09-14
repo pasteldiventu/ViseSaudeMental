@@ -11,6 +11,7 @@ from app.models import (
     EscolaUser,
     OpcaoResposta,
     Pergunta,
+    ProfessorTurma,
     Questionario,
     Serie,
     Turma,
@@ -65,6 +66,52 @@ def seed_demo(db: Session) -> None:
             )
         )
 
+    def _staff(email: str, name: str, role: str) -> User:
+        user = db.scalar(select(User).where(User.email == email))
+        if user is None:
+            user = User(
+                name=name,
+                email=email,
+                password=hash_password("password"),
+                is_superuser=False,
+            )
+            db.add(user)
+            db.flush()
+        else:
+            user.name = name
+            user.password = hash_password("password")
+            user.is_superuser = False
+        link = db.scalar(
+            select(EscolaUser).where(
+                EscolaUser.user_id == user.id,
+                EscolaUser.escola_id == escola.id,
+                EscolaUser.role == role,
+            )
+        )
+        if link is None:
+            db.add(
+                EscolaUser(
+                    user_id=user.id,
+                    escola_id=escola.id,
+                    role=role,
+                    status="ativo",
+                )
+            )
+        return user
+
+    admin_escola = _staff(
+        "admin.escola@vise.local",
+        "Admin da Escola Demo",
+        "admin_escola",
+    )
+    pesquisador = _staff(
+        "pesquisador@vise.local",
+        "Pesquisadora Demo",
+        "pesquisador",
+    )
+    professor = _staff("professor@vise.local", "Professor Demo", "professor")
+    del admin_escola
+
     serie = db.scalar(select(Serie).where(Serie.descricao == "9º Ano"))
     if serie is None:
         serie = Serie(descricao="9º Ano")
@@ -85,6 +132,15 @@ def seed_demo(db: Session) -> None:
         )
         db.add(turma)
         db.flush()
+
+    vinculo_turma = db.scalar(
+        select(ProfessorTurma).where(
+            ProfessorTurma.user_id == professor.id,
+            ProfessorTurma.turma_id == turma.id,
+        )
+    )
+    if vinculo_turma is None:
+        db.add(ProfessorTurma(user_id=professor.id, turma_id=turma.id))
 
     aluno = db.scalar(
         select(Aluno).where(
@@ -117,7 +173,7 @@ def seed_demo(db: Session) -> None:
     if questionario is None:
         questionario = Questionario(
             escola_id=escola.id,
-            pesquisador_id=admin.id,
+            pesquisador_id=pesquisador.id,
             nome="Bem-estar emocional - Demo",
             descricao="Instrumento demonstrativo do MVP",
             status="publicado",
@@ -127,6 +183,10 @@ def seed_demo(db: Session) -> None:
         )
         db.add(questionario)
         db.flush()
+    else:
+        questionario.pesquisador_id = pesquisador.id
+        questionario.compartilhado_na_escola = True
+        questionario.status = "publicado"
 
     categoria = db.scalar(
         select(Categoria).where(
@@ -222,6 +282,97 @@ def seed_demo(db: Session) -> None:
         db.add(
             AplicacaoQuestionario(
                 questionario_id=questionario.id,
+                escola_id=escola.id,
+                alvo_tipo="escola",
+                status="ativa",
+                inicia_em=agora - timedelta(days=1),
+                termina_em=agora + timedelta(days=365),
+            )
+        )
+
+    questionario_b = db.scalar(
+        select(Questionario).where(
+            Questionario.escola_id == escola.id,
+            Questionario.nome == "Convívio escolar - Demo",
+        )
+    )
+    if questionario_b is None:
+        questionario_b = Questionario(
+            escola_id=escola.id,
+            pesquisador_id=pesquisador.id,
+            nome="Convívio escolar - Demo",
+            descricao="Segundo instrumento para testar múltiplos questionários",
+            status="publicado",
+            publico_alvo="9º ano",
+            versao=1,
+            compartilhado_na_escola=False,
+        )
+        db.add(questionario_b)
+        db.flush()
+
+    categoria_b = db.scalar(
+        select(Categoria).where(
+            Categoria.questionario_id == questionario_b.id,
+            Categoria.nome == "Na escola",
+        )
+    )
+    if categoria_b is None:
+        categoria_b = Categoria(
+            questionario_id=questionario_b.id,
+            escola_id=escola.id,
+            nome="Na escola",
+            ordem=1,
+            cor="#38BDF8",
+            mensagem_avatar="Pense no seu dia a dia na escola.",
+        )
+        db.add(categoria_b)
+        db.flush()
+
+    pergunta_b = db.scalar(
+        select(Pergunta).where(
+            Pergunta.categoria_id == categoria_b.id,
+            Pergunta.texto == "Você se sente acolhido(a) na sua turma?",
+        )
+    )
+    if pergunta_b is None:
+        pergunta_b = Pergunta(
+            categoria_id=categoria_b.id,
+            escola_id=escola.id,
+            tipo="multipla_escolha",
+            texto="Você se sente acolhido(a) na sua turma?",
+            ordem=1,
+            obrigatoria=True,
+            peso=1,
+        )
+        db.add(pergunta_b)
+        db.flush()
+        for ordem, (descricao, pontuacao, emoji) in enumerate(
+            [("Pouco", 0, "😕"), ("Mais ou menos", 1, "😐"), ("Bastante", 2, "😊")],
+            start=1,
+        ):
+            db.add(
+                OpcaoResposta(
+                    pergunta_id=pergunta_b.id,
+                    escola_id=escola.id,
+                    descricao=descricao,
+                    pontuacao=pontuacao,
+                    ordem=ordem,
+                    emoji=emoji,
+                )
+            )
+
+    aplicacao_b = db.scalar(
+        select(AplicacaoQuestionario).where(
+            AplicacaoQuestionario.questionario_id == questionario_b.id,
+            AplicacaoQuestionario.escola_id == escola.id,
+            AplicacaoQuestionario.alvo_tipo == "escola",
+        )
+    )
+    if aplicacao_b is None:
+        agora = datetime.utcnow()
+        db.add(
+            AplicacaoQuestionario(
+                questionario_id=questionario_b.id,
                 escola_id=escola.id,
                 alvo_tipo="escola",
                 status="ativa",

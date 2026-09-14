@@ -1,6 +1,6 @@
 from fastapi import HTTPException
 from sqlalchemy import or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models import (
     Categoria,
@@ -51,6 +51,12 @@ class PublicarQuestionarioService:
 
         categorias = db.scalars(
             select(Categoria)
+            .options(
+                selectinload(Categoria.subcategorias),
+                selectinload(Categoria.perguntas).selectinload(
+                    Pergunta.opcoes_resposta
+                ),
+            )
             .where(Categoria.questionario_id == questionario.id)
             .order_by(Categoria.ordem)
         ).all()
@@ -96,7 +102,7 @@ class PublicarQuestionarioService:
                 )
                 db.add(nova_pergunta)
                 db.flush()
-                for opcao in pergunta.opcoes:
+                for opcao in pergunta.opcoes_resposta:
                     db.add(
                         OpcaoResposta(
                             pergunta_id=nova_pergunta.id,

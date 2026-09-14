@@ -7,6 +7,7 @@ import 'features/auth/login_screen.dart';
 import 'features/avatar/avatar_intro_screen.dart';
 import 'features/categories/categories_screen.dart';
 import 'features/common/responsive_shell.dart';
+import 'features/home/home_questionarios_screen.dart';
 import 'features/termo/termo_screen.dart';
 import 'providers/app_providers.dart';
 
@@ -28,7 +29,7 @@ class _ViseAppState extends ConsumerState<ViseApp> {
   Widget build(BuildContext context) {
     final controller = ref.watch(appControllerProvider);
     return MaterialApp(
-      title: 'Vise Saúde Mental',
+      title: 'VISE-MT',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
       locale: const Locale('pt', 'BR'),
@@ -38,7 +39,8 @@ class _ViseAppState extends ConsumerState<ViseApp> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      builder: (context, child) => ResponsiveShell(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) =>
+          ResponsiveShell(child: child ?? const SizedBox.shrink()),
       home: _home(controller),
     );
   }
@@ -51,21 +53,24 @@ class _ViseAppState extends ConsumerState<ViseApp> {
         ),
       );
     }
-    if (!controller.autenticado || controller.aplicacaoId == null) {
+    if (!controller.autenticado) {
       return const LoginScreen();
     }
     if (!controller.termoAceito) {
-      return TermoScreen(
-        aplicacaoId: controller.aplicacaoId!,
-        onAccepted: controller.registrarTermoAceito,
-      );
+      return TermoScreen(onAccepted: controller.registrarTermoAceito);
+    }
+    final aplicacaoId = controller.aplicacaoId;
+    if (aplicacaoId == null) {
+      return const HomeQuestionariosScreen();
     }
     if (!controller.avatarIntroduzido) {
       return AvatarIntroScreen(
-        aplicacaoId: controller.aplicacaoId!,
-        onStarted: controller.concluirAvatarIntro,
+        aplicacaoId: aplicacaoId,
+        onStarted: () {
+          controller.concluirAvatarIntro();
+        },
       );
     }
-    return CategoriesScreen(aplicacaoId: controller.aplicacaoId!);
+    return CategoriesScreen(aplicacaoId: aplicacaoId);
   }
 }

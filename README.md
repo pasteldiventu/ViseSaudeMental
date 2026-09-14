@@ -20,7 +20,10 @@ O entrypoint aguarda o MySQL, cria tabelas, roda o seed e sobe o Uvicorn na port
 | Health | http://localhost:8000/up |
 | SQLAdmin (CMS) | http://localhost:8000/admin |
 | API aluno | http://localhost:8000/api/v1 |
-| Admin | `admin@vise.local` / `password` |
+| Admin geral | `admin@vise.local` / `password` (acesso total) |
+| Admin escola | `admin.escola@vise.local` / `password` |
+| Pesquisador | `pesquisador@vise.local` / `password` |
+| Professor | `professor@vise.local` / `password` |
 | Aluno demo | CPF `07593256189` · nascimento `2009-10-21` |
 
 ### Comandos úteis
@@ -84,7 +87,14 @@ Fluxo: **login → termo → avatar → categorias → perguntas** (SQLite / Ind
 
 ## CMS
 
-Painel **SQLAdmin** em `/admin`: escolas, vínculos, turmas, alunos, questionários, categorias, perguntas, opções, aplicações, respostas, resultados, avatares.
+Painel **SQLAdmin** em `/admin`.
+
+Ações úteis:
+- **Questionários:** selecionar itens → *Publicar* ou *Nova versão*
+- **Aplicações:** o admin da escola **cria/libera** a aplicação (escola, turma ou aluno)
+- **Aplicações:** *Limpar respostas (demo)* — só `admin@vise.local` (apaga no servidor)
+- **Importar alunos:** menu *Importar alunos* — CSV com coluna `escola` (nome ou INEP). Exemplo em [`docs/alunos_exemplo.csv`](docs/alunos_exemplo.csv)
+- **Professor × turma:** liga o professor às turmas que ele acompanha
 
 ## OpenAPI
 

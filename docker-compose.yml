@@ -17,6 +17,7 @@ services:
 
   app:
     build: ./backend
+    entrypoint: ["/bin/sh", "/app/docker/entrypoint.sh"]
     environment:
       APP_ENV: local
       APP_DEBUG: "true"

@@ -60,6 +60,28 @@ class AppDatabase extends _$AppDatabase {
     localProgress,
   )..where((t) => t.aplicacaoId.equals(aplicacaoId))).watch();
 
+  Future<({int total, int respondidas})> contagemProgresso(
+    int aplicacaoId,
+  ) async {
+    final categorias =
+        await (select(cachedCategoria)
+              ..where((t) => t.aplicacaoId.equals(aplicacaoId)))
+            .get();
+    var total = 0;
+    for (final categoria in categorias) {
+      final perguntas =
+          await (select(cachedPergunta)
+                ..where((t) => t.categoriaId.equals(categoria.id)))
+              .get();
+      total += perguntas.length;
+    }
+    final respondidas =
+        await (select(localProgress)
+              ..where((t) => t.aplicacaoId.equals(aplicacaoId)))
+            .get();
+    return (total: total, respondidas: respondidas.length);
+  }
+
   Stream<List<OutboxRespostaData>> observarOutbox(int aplicacaoId) => (select(
     outboxResposta,
   )..where((t) => t.aplicacaoId.equals(aplicacaoId))).watch();

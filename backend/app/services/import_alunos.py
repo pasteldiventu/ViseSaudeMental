@@ -1,15 +1,17 @@
 import csv
 import re
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Aluno, Turma
+from app.models import Aluno, Escola, Turma
 
 
 COLUNAS = {
+    "escola",
     "nome",
     "cpf",
     "data_nascimento",
@@ -24,7 +26,9 @@ COLUNAS = {
 class ImportAlunosCsvService:
     @staticmethod
     def importar(
-        db: Session, arquivo: str | Path, escola_id: int
+        db: Session,
+        arquivo: str | Path,
+        allowed_escola_ids: list[int] | None = None,
     ) -> dict[str, int | list[str]]:
         path = Path(arquivo)
         if not path.is_file():
@@ -50,7 +54,9 @@ class ImportAlunosCsvService:
                 if not any((value or "").strip() for value in row.values()):
                     continue
                 try:
-                    ImportAlunosCsvService._criar(db, row, escola_id)
+                    ImportAlunosCsvService._criar(
+                        db, row, allowed_escola_ids=allowed_escola_ids
+                    )
                     db.commit()
                     sucesso += 1
                 except Exception as exc:
@@ -59,7 +65,51 @@ class ImportAlunosCsvService:
             return {"success": sucesso, "errors": erros}
 
     @staticmethod
-    def _criar(db: Session, row: dict[str, str | None], escola_id: int) -> None:
+    def importar_bytes(
+        db: Session,
+        conteudo: bytes,
+        allowed_escola_ids: list[int] | None = None,
+    ) -> dict[str, int | list[str]]:
+        with tempfile.NamedTemporaryFile(
+            suffix=".csv", delete=False
+        ) as handle:
+            handle.write(conteudo)
+            path = handle.name
+        try:
+            return ImportAlunosCsvService.importar(
+                db, path, allowed_escola_ids=allowed_escola_ids
+            )
+        finally:
+            Path(path).unlink(missing_ok=True)
+
+    @staticmethod
+    def _resolver_escola(db: Session, valor: str) -> Escola:
+        valor = (valor or "").strip()
+        if not valor:
+            raise ValueError("escola não informada.")
+        digits = re.sub(r"\D", "", valor)
+        escola = None
+        if digits:
+            escola = db.scalar(select(Escola).where(Escola.inep == digits))
+            if escola is None and digits != valor:
+                escola = db.scalar(select(Escola).where(Escola.inep == valor))
+        if escola is None:
+            escola = db.scalar(select(Escola).where(Escola.nome == valor))
+        if escola is None:
+            raise ValueError(f"escola '{valor}' não encontrada (use nome ou INEP).")
+        return escola
+
+    @staticmethod
+    def _criar(
+        db: Session,
+        row: dict[str, str | None],
+        allowed_escola_ids: list[int] | None,
+    ) -> None:
+        escola = ImportAlunosCsvService._resolver_escola(db, row.get("escola") or "")
+        if allowed_escola_ids is not None and escola.id not in allowed_escola_ids:
+            raise ValueError(
+                f"sem permissão para importar na escola '{escola.nome}'."
+            )
         nome = (row.get("nome") or "").strip()
         cpf = re.sub(r"\D", "", row.get("cpf") or "")
         turma_nome = (row.get("turma_nome") or "").strip()
@@ -71,25 +121,44 @@ class ImportAlunosCsvService:
             raise ValueError("turma_nome não informado.")
         turma = db.scalar(
             select(Turma).where(
-                Turma.escola_id == escola_id, Turma.nome == turma_nome
+                Turma.escola_id == escola.id, Turma.nome == turma_nome
             )
         )
         if turma is None:
-            raise ValueError(f"turma '{turma_nome}' não encontrada nesta escola.")
+            raise ValueError(
+                f"turma '{turma_nome}' não encontrada nesta escola."
+            )
+        existente = db.scalar(
+            select(Aluno).where(
+                Aluno.escola_id == escola.id,
+                Aluno.cpf == cpf,
+            )
+        )
         data = ImportAlunosCsvService._data(row.get("data_nascimento") or "")
         nullable = lambda key: (row.get(key) or "").strip() or None
-        db.add(
-            Aluno(
-                escola_id=escola_id,
-                turma_id=turma.id,
-                nome=nome,
-                cpf=cpf,
-                data_nascimento=data,
-                sexo=nullable("sexo"),
-                matricula=nullable("matricula"),
-                responsavel=nullable("responsavel"),
-                contato_responsavel=nullable("contato_responsavel"),
+        if existente is None:
+            db.add(
+                Aluno(
+                    escola_id=escola.id,
+                    turma_id=turma.id,
+                    nome=nome,
+                    cpf=cpf,
+                    data_nascimento=data,
+                    sexo=nullable("sexo"),
+                    matricula=nullable("matricula"),
+                    responsavel=nullable("responsavel"),
+                    contato_responsavel=nullable("contato_responsavel"),
+                )
             )
+            return
+        existente.turma_id = turma.id
+        existente.nome = nome
+        existente.data_nascimento = data
+        existente.sexo = nullable("sexo") or existente.sexo
+        existente.matricula = nullable("matricula") or existente.matricula
+        existente.responsavel = nullable("responsavel") or existente.responsavel
+        existente.contato_responsavel = (
+            nullable("contato_responsavel") or existente.contato_responsavel
         )
 
     @staticmethod
@@ -106,6 +175,12 @@ class ImportAlunosCsvService:
 
 
 def importar_csv(
-    db: Session, arquivo: str | Path, escola_id: int
+    db: Session,
+    arquivo: str | Path,
+    escola_id: int | None = None,
+    allowed_escola_ids: list[int] | None = None,
 ) -> dict[str, int | list[str]]:
-    return ImportAlunosCsvService.importar(db, arquivo, escola_id)
+    ids = allowed_escola_ids
+    if ids is None and escola_id is not None:
+        ids = [escola_id]
+    return ImportAlunosCsvService.importar(db, arquivo, allowed_escola_ids=ids)

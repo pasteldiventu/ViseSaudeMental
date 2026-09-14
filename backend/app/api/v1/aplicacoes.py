@@ -12,6 +12,7 @@ from app.models import (
     Categoria,
     Pergunta,
     Resposta,
+    Resultado,
 )
 from app.schemas.aluno_api import (
     AplicacoesResponse,
@@ -68,6 +69,7 @@ def listar_aplicacoes(
             AplicacaoQuestionario.status == "ativa",
             _alvo_do_aluno(aluno),
         )
+        .order_by(AplicacaoQuestionario.id)
     ).all()
     data = []
     for aplicacao in aplicacoes:
@@ -82,6 +84,15 @@ def listar_aplicacoes(
                 Resposta.aluno_id == aluno.id,
             )
         ) or 0
+        finalizado = (
+            db.scalar(
+                select(Resultado.id).where(
+                    Resultado.aplicacao_id == aplicacao.id,
+                    Resultado.aluno_id == aluno.id,
+                )
+            )
+            is not None
+        )
         data.append(
             {
                 "id": aplicacao.id,
@@ -92,7 +103,7 @@ def listar_aplicacoes(
                 },
                 "respondidas": respondidas,
                 "total": total,
-                "concluido": total > 0 and respondidas >= total,
+                "concluido": finalizado,
             }
         )
     return {"data": data}

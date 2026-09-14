@@ -4,13 +4,11 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../providers/app_providers.dart';
-import '../avatar/avatar_intro_screen.dart';
 import '../common/tactile_button.dart';
 
 class TermoScreen extends ConsumerStatefulWidget {
-  const TermoScreen({super.key, required this.aplicacaoId, this.onAccepted});
+  const TermoScreen({super.key, this.onAccepted});
 
-  final int aplicacaoId;
   final Future<void> Function()? onAccepted;
 
   @override
@@ -47,11 +45,8 @@ class _TermoScreenState extends ConsumerState<TermoScreen> {
       return;
     }
 
-    await Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (_) => AvatarIntroScreen(aplicacaoId: widget.aplicacaoId),
-      ),
-    );
+    if (!mounted) return;
+    ref.read(appControllerProvider).voltarParaLista();
   }
 
   @override

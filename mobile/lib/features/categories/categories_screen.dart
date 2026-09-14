@@ -29,11 +29,18 @@ class CategoriesScreen extends ConsumerWidget {
     final database = ref.watch(databaseProvider);
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Meus questionários',
+          onPressed: () => ref.read(appControllerProvider).voltarParaLista(),
+          icon: const Icon(Icons.arrow_back_rounded),
+        ),
         title: const Text('CAMINHO'),
         actions: [
           PopupMenuButton<String>(
             onSelected: (value) async {
-              if (value == 'clear') {
+              if (value == 'home') {
+                ref.read(appControllerProvider).voltarParaLista();
+              } else if (value == 'clear') {
                 await database.limparRespostas(aplicacaoId);
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -47,6 +54,10 @@ class CategoriesScreen extends ConsumerWidget {
               }
             },
             itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'home',
+                child: Text('Meus questionários'),
+              ),
               PopupMenuItem(
                 value: 'clear',
                 child: Text('Limpar respostas locais'),
@@ -76,13 +87,20 @@ class CategoriesScreen extends ConsumerWidget {
                   }
 
                   final doneFlags = <bool>[];
+                  var totalQuestions = 0;
+                  var answeredQuestions = 0;
                   for (var i = 0; i < categories.length; i++) {
                     final questions = groups[i];
+                    totalQuestions += questions.length;
+                    final answeredInCategory = questions
+                        .where(
+                          (q) => progress.any((a) => a.perguntaId == q.id),
+                        )
+                        .length;
+                    answeredQuestions += answeredInCategory;
                     final done =
                         questions.isNotEmpty &&
-                        questions.every(
-                          (q) => progress.any((a) => a.perguntaId == q.id),
-                        );
+                        answeredInCategory == questions.length;
                     doneFlags.add(done);
                   }
                   final doneCount = doneFlags.where((d) => d).length;
@@ -98,12 +116,12 @@ class CategoriesScreen extends ConsumerWidget {
                       ProgressBanner(
                         eyebrow: 'Questionário',
                         title: 'Cuide de você,\numa etapa de cada vez.',
-                        progressLabel: categories.isEmpty
-                            ? 'Nenhuma etapa disponível'
-                            : '$doneCount de ${categories.length} etapas',
-                        value: categories.isEmpty
+                        progressLabel: totalQuestions == 0
+                            ? 'Nenhuma pergunta disponível'
+                            : '$answeredQuestions de $totalQuestions perguntas',
+                        value: totalQuestions == 0
                             ? 0
-                            : doneCount / categories.length,
+                            : answeredQuestions / totalQuestions,
                       ),
                       if (currentIndex >= 0 && !allDone) ...[
                         const SizedBox(height: 14),
@@ -122,7 +140,7 @@ class CategoriesScreen extends ConsumerWidget {
                       ],
                       const SizedBox(height: 22),
                       Text(
-                        'Etapas',
+                        'Etapas · $doneCount/${categories.length}',
                         style: GoogleFonts.figtree(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,

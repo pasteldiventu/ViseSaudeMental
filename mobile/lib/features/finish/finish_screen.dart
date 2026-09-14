@@ -134,6 +134,13 @@ class _FinishScreenState extends ConsumerState<FinishScreen> {
               ),
               const SizedBox(height: 10),
               TextButton(
+                onPressed: () {
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                  ref.read(appControllerProvider).voltarParaLista();
+                },
+                child: const Text('Voltar aos questionários'),
+              ),
+              TextButton(
                 onPressed: () => Navigator.of(context).pop(),
                 child: const Text('Voltar às etapas'),
               ),

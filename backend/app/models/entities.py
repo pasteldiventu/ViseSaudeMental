@@ -37,6 +37,9 @@ class User(TimestampMixin, SoftDeleteMixin, Base):
     questionarios: Mapped[list["Questionario"]] = relationship(
         back_populates="pesquisador"
     )
+    turmas_professor: Mapped[list["ProfessorTurma"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class Escola(TimestampMixin, SoftDeleteMixin, Base):
@@ -94,6 +97,24 @@ class EscolaUser(TimestampMixin, Base):
     escola: Mapped["Escola"] = relationship(back_populates="usuarios_vinculos")
 
 
+class ProfessorTurma(TimestampMixin, Base):
+    """Liga professor a turmas específicas da escola."""
+
+    __tablename__ = "professor_turma"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "turma_id", name="uq_professor_turma_user_turma"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    turma_id: Mapped[int] = mapped_column(ForeignKey("turmas.id"), index=True)
+
+    user: Mapped["User"] = relationship(back_populates="turmas_professor")
+    turma: Mapped["Turma"] = relationship(back_populates="professores")
+
+
 class Serie(TimestampMixin, SoftDeleteMixin, Base):
     __tablename__ = "series"
 
@@ -120,6 +141,9 @@ class Turma(TimestampMixin, SoftDeleteMixin, Base):
     alunos: Mapped[list["Aluno"]] = relationship(back_populates="turma")
     aplicacoes: Mapped[list["AplicacaoQuestionario"]] = relationship(
         back_populates="turma"
+    )
+    professores: Mapped[list["ProfessorTurma"]] = relationship(
+        back_populates="turma", cascade="all, delete-orphan"
     )
 
 

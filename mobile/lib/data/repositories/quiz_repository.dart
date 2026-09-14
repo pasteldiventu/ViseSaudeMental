@@ -123,6 +123,7 @@ class QuizRepository {
       final antigo = (await database.listarAplicacoes())
           .where((item) => item.id == appId)
           .firstOrNull;
+      final concluidoApi = aplicacao['concluido'] == true;
       await database.salvarInstrumento(
         aplicacao: CachedAplicacaoCompanion.insert(
           id: Value(appId),
@@ -132,8 +133,12 @@ class QuizRepository {
                 aplicacao['questionario']?['nome'],
             'Questionário',
           ),
-          concluidaLocalmente: Value(antigo?.concluidaLocalmente ?? false),
-          sincronizadaServidor: Value(antigo?.sincronizadaServidor ?? false),
+          concluidaLocalmente: Value(
+            concluidoApi || (antigo?.concluidaLocalmente ?? false),
+          ),
+          sincronizadaServidor: Value(
+            concluidoApi || (antigo?.sincronizadaServidor ?? false),
+          ),
         ),
         categorias: categorias,
         perguntas: perguntas,

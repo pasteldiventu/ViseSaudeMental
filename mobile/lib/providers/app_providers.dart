@@ -93,8 +93,10 @@ class AppController extends ChangeNotifier {
   Future<void> inicializar() async {
     autenticado = await auth.temSessaoOuCache();
     if (autenticado) {
-      await _selecionarAplicacao();
       await _carregarTermoAceito();
+      if (aplicacaoId != null) {
+        await _carregarAvatarIntro();
+      }
     }
     inicializando = false;
     notifyListeners();
@@ -109,12 +111,15 @@ class AppController extends ChangeNotifier {
       if (!result.offline) {
         await quiz.atualizarCache();
       }
-      await _selecionarAplicacao();
-      autenticado = aplicacaoId != null;
-      if (autenticado) await _carregarTermoAceito();
+      final apps = await database.listarAplicacoes();
+      autenticado = true;
+      aplicacaoId = null;
       avatarIntroduzido = false;
-      if (!autenticado) erro = 'Nenhum questionário disponível.';
-      return autenticado;
+      await _carregarTermoAceito();
+      if (apps.isEmpty) {
+        erro = 'Nenhum questionário disponível.';
+      }
+      return true;
     } on DioException catch (error, stack) {
       debugPrint('Falha no login: $error\n$stack');
       erro = error.response?.statusCode == 422
@@ -149,7 +154,28 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void concluirAvatarIntro() {
+  Future<void> abrirAplicacao(int id) async {
+    aplicacaoId = id;
+    await _carregarAvatarIntro();
+    notifyListeners();
+    unawaited(sync.sincronizar(id).catchError((_) {}));
+  }
+
+  void voltarParaLista() {
+    aplicacaoId = null;
+    avatarIntroduzido = false;
+    notifyListeners();
+  }
+
+  Future<void> concluirAvatarIntro() async {
+    final alunoId = await auth.alunoId;
+    final appId = aplicacaoId;
+    if (alunoId != null && appId != null) {
+      await auth.storage.write(
+        key: 'avatar_intro_${alunoId}_$appId',
+        value: 'true',
+      );
+    }
     avatarIntroduzido = true;
     notifyListeners();
   }
@@ -161,9 +187,16 @@ class AppController extends ChangeNotifier {
         await auth.storage.read(key: 'termo_aceito_$alunoId') == 'true';
   }
 
-  Future<void> _selecionarAplicacao() async {
-    final aplicacoes = await database.listarAplicacoes();
-    aplicacaoId = aplicacoes.isEmpty ? null : aplicacoes.first.id;
+  Future<void> _carregarAvatarIntro() async {
+    final alunoId = await auth.alunoId;
+    final appId = aplicacaoId;
+    if (alunoId == null || appId == null) {
+      avatarIntroduzido = false;
+      return;
+    }
+    avatarIntroduzido =
+        await auth.storage.read(key: 'avatar_intro_${alunoId}_$appId') ==
+        'true';
   }
 
   @override
