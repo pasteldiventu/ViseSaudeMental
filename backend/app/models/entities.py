@@ -1,12 +1,39 @@
 from datetime import datetime, date
 from decimal import Decimal
 
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import (
     String, Text, Boolean, Integer, ForeignKey, Date, DateTime, Numeric, JSON,
     UniqueConstraint, Index, func,
 )
 from app.database import Base
+
+
+def _txt(value, fallback: str = "—") -> str:
+    text = str(value).strip() if value is not None else ""
+    return text or fallback
+
+
+def _mascarar_cpf(value: str | None) -> str:
+    digits = "".join(character for character in (value or "") if character.isdigit())
+    if len(digits) != 11:
+        return _txt(value)
+    return f"{digits[:3]}.{digits[3:6]}.{digits[6:9]}-{digits[9:]}"
+
+
+def _rel_attr(obj, relation: str, attr: str, fallback=None):
+    """Lê atributo de relação só se já estiver carregada (evita DetachedInstanceError)."""
+    try:
+        state = sa_inspect(obj)
+    except Exception:
+        return fallback
+    if relation in state.unloaded:
+        return fallback
+    related = getattr(obj, relation, None)
+    if related is None:
+        return fallback
+    return getattr(related, attr, fallback)
 
 
 class TimestampMixin:
@@ -40,6 +67,9 @@ class User(TimestampMixin, SoftDeleteMixin, Base):
     turmas_professor: Mapped[list["ProfessorTurma"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+
+    def __str__(self) -> str:
+        return f"{_txt(self.name)} ({_txt(self.email)})"
 
 
 class Escola(TimestampMixin, SoftDeleteMixin, Base):
@@ -75,6 +105,10 @@ class Escola(TimestampMixin, SoftDeleteMixin, Base):
     )
     avatars: Mapped[list["Avatar"]] = relationship(back_populates="escola")
 
+    def __str__(self) -> str:
+        inep = f" · INEP {self.inep}" if self.inep else ""
+        return f"{_txt(self.nome)}{inep}"
+
 
 class EscolaUser(TimestampMixin, Base):
     __tablename__ = "escola_user"
@@ -96,6 +130,11 @@ class EscolaUser(TimestampMixin, Base):
     user: Mapped["User"] = relationship(back_populates="escolas_vinculos")
     escola: Mapped["Escola"] = relationship(back_populates="usuarios_vinculos")
 
+    def __str__(self) -> str:
+        user = _rel_attr(self, "user", "name") or f"user #{self.user_id}"
+        escola = _rel_attr(self, "escola", "nome") or f"escola #{self.escola_id}"
+        return f"{user} — {escola} ({_txt(self.role)})"
+
 
 class ProfessorTurma(TimestampMixin, Base):
     """Liga professor a turmas específicas da escola."""
@@ -114,6 +153,11 @@ class ProfessorTurma(TimestampMixin, Base):
     user: Mapped["User"] = relationship(back_populates="turmas_professor")
     turma: Mapped["Turma"] = relationship(back_populates="professores")
 
+    def __str__(self) -> str:
+        user = _rel_attr(self, "user", "name") or f"user #{self.user_id}"
+        turma = _rel_attr(self, "turma", "nome") or f"turma #{self.turma_id}"
+        return f"{user} → {turma}"
+
 
 class Serie(TimestampMixin, SoftDeleteMixin, Base):
     __tablename__ = "series"
@@ -122,6 +166,9 @@ class Serie(TimestampMixin, SoftDeleteMixin, Base):
     descricao: Mapped[str] = mapped_column(String(255), unique=True)
 
     turmas: Mapped[list["Turma"]] = relationship(back_populates="serie")
+
+    def __str__(self) -> str:
+        return _txt(self.descricao)
 
 
 class Turma(TimestampMixin, SoftDeleteMixin, Base):
@@ -145,6 +192,11 @@ class Turma(TimestampMixin, SoftDeleteMixin, Base):
     professores: Mapped[list["ProfessorTurma"]] = relationship(
         back_populates="turma", cascade="all, delete-orphan"
     )
+
+    def __str__(self) -> str:
+        escola = _rel_attr(self, "escola", "nome")
+        prefix = f"{escola} · " if escola else ""
+        return f"{prefix}{_txt(self.nome)} ({_txt(self.turno)})"
 
 
 class Aluno(TimestampMixin, SoftDeleteMixin, Base):
@@ -177,6 +229,9 @@ class Aluno(TimestampMixin, SoftDeleteMixin, Base):
     termos_aceite: Mapped[list["TermoAceite"]] = relationship(
         back_populates="aluno", cascade="all, delete-orphan"
     )
+
+    def __str__(self) -> str:
+        return f"{_txt(self.nome)} (CPF {_mascarar_cpf(self.cpf)})"
 
 
 class Questionario(TimestampMixin, SoftDeleteMixin, Base):
@@ -213,6 +268,9 @@ class Questionario(TimestampMixin, SoftDeleteMixin, Base):
         back_populates="questionario"
     )
 
+    def __str__(self) -> str:
+        return f"{_txt(self.nome)} (v{self.versao} · {_txt(self.status)})"
+
 
 class Categoria(TimestampMixin, SoftDeleteMixin, Base):
     __tablename__ = "categorias"
@@ -238,6 +296,11 @@ class Categoria(TimestampMixin, SoftDeleteMixin, Base):
         back_populates="categoria"
     )
 
+    def __str__(self) -> str:
+        q = _rel_attr(self, "questionario", "nome")
+        prefix = f"{q} · " if q else ""
+        return f"{prefix}{_txt(self.nome)}"
+
 
 class Subcategoria(TimestampMixin, SoftDeleteMixin, Base):
     __tablename__ = "subcategorias"
@@ -251,6 +314,9 @@ class Subcategoria(TimestampMixin, SoftDeleteMixin, Base):
     categoria: Mapped["Categoria"] = relationship(back_populates="subcategorias")
     escola: Mapped["Escola"] = relationship(back_populates="subcategorias")
     perguntas: Mapped[list["Pergunta"]] = relationship(back_populates="subcategoria")
+
+    def __str__(self) -> str:
+        return _txt(self.nome)
 
 
 class Pergunta(TimestampMixin, SoftDeleteMixin, Base):
@@ -283,6 +349,12 @@ class Pergunta(TimestampMixin, SoftDeleteMixin, Base):
     )
     respostas: Mapped[list["Resposta"]] = relationship(back_populates="pergunta")
 
+    def __str__(self) -> str:
+        texto = _txt(self.texto)
+        if len(texto) > 80:
+            texto = texto[:77] + "..."
+        return texto
+
 
 class OpcaoResposta(TimestampMixin, SoftDeleteMixin, Base):
     __tablename__ = "opcoes_resposta"
@@ -299,6 +371,10 @@ class OpcaoResposta(TimestampMixin, SoftDeleteMixin, Base):
     pergunta: Mapped["Pergunta"] = relationship(back_populates="opcoes_resposta")
     escola: Mapped["Escola"] = relationship(back_populates="opcoes_resposta")
     respostas: Mapped[list["Resposta"]] = relationship(back_populates="opcao")
+
+    def __str__(self) -> str:
+        emoji = f"{self.emoji} " if self.emoji else ""
+        return f"{emoji}{_txt(self.descricao)}"
 
 
 class RegraClassificacao(TimestampMixin, SoftDeleteMixin, Base):
@@ -324,6 +400,9 @@ class RegraClassificacao(TimestampMixin, SoftDeleteMixin, Base):
     questionario: Mapped["Questionario | None"] = relationship(
         back_populates="regras_classificacao"
     )
+
+    def __str__(self) -> str:
+        return f"{_txt(self.rotulo)} ({self.min_score}–{self.max_score})"
 
 
 class AplicacaoQuestionario(TimestampMixin, SoftDeleteMixin, Base):
@@ -353,6 +432,12 @@ class AplicacaoQuestionario(TimestampMixin, SoftDeleteMixin, Base):
     aluno: Mapped["Aluno | None"] = relationship(back_populates="aplicacoes")
     respostas: Mapped[list["Resposta"]] = relationship(back_populates="aplicacao")
     resultados: Mapped[list["Resultado"]] = relationship(back_populates="aplicacao")
+
+    def __str__(self) -> str:
+        titulo = (
+            _rel_attr(self, "questionario", "nome") or f"Aplicação #{self.id}"
+        )
+        return f"{titulo} · {_txt(self.alvo_tipo)} · {_txt(self.status)}"
 
 
 class Resposta(TimestampMixin, Base):
@@ -386,6 +471,16 @@ class Resposta(TimestampMixin, Base):
     pergunta: Mapped["Pergunta"] = relationship(back_populates="respostas")
     opcao: Mapped["OpcaoResposta | None"] = relationship(back_populates="respostas")
 
+    def __str__(self) -> str:
+        aluno = _rel_attr(self, "aluno", "nome") or f"aluno #{self.aluno_id}"
+        if self.opcao_id:
+            opcao = _rel_attr(self, "opcao", "descricao")
+            return f"{aluno} → {_txt(opcao)}"
+        texto = _txt(self.texto)
+        if len(texto) > 40:
+            texto = texto[:37] + "..."
+        return f"{aluno} → {texto}"
+
 
 class Resultado(TimestampMixin, Base):
     __tablename__ = "resultados"
@@ -408,6 +503,10 @@ class Resultado(TimestampMixin, Base):
     )
     aluno: Mapped["Aluno"] = relationship(back_populates="resultados")
 
+    def __str__(self) -> str:
+        aluno = _rel_attr(self, "aluno", "nome") or f"aluno #{self.aluno_id}"
+        return f"Resultado de {aluno}"
+
 
 class Avatar(TimestampMixin, Base):
     __tablename__ = "avatars"
@@ -421,6 +520,9 @@ class Avatar(TimestampMixin, Base):
     mensagem_padrao: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     escola: Mapped["Escola | None"] = relationship(back_populates="avatars")
+
+    def __str__(self) -> str:
+        return _txt(self.nome)
 
 
 class TermoAceite(Base):
@@ -438,6 +540,10 @@ class TermoAceite(Base):
     accepted_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     aluno: Mapped["Aluno"] = relationship(back_populates="termos_aceite")
+
+    def __str__(self) -> str:
+        aluno = _rel_attr(self, "aluno", "nome") or f"aluno #{self.aluno_id}"
+        return f"{aluno} · termo v{self.versao}"
 
 
 class PersonalAccessToken(TimestampMixin, Base):

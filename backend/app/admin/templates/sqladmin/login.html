@@ -1,0 +1,50 @@
+{% extends "sqladmin/base.html" %}
+{% block head %}
+<link rel="stylesheet" href="/static/admin-brand.css">
+{% endblock %}
+{% block body %}
+<div class="d-flex align-items-center justify-content-center vh-100">
+  <form class="col-lg-6 col-md-6 card card-md" action="{{ url_for('admin:login') }}" method="POST" autocomplete="off">
+    <div class="card-body">
+      <div class="vise-login-brand">
+        <svg class="vise-heart" viewBox="0 0 32 32" width="34" height="34" aria-hidden="true">
+          <defs>
+            <linearGradient id="viseHeartFill" x1="0" y1="0" x2="32" y2="0" gradientUnits="userSpaceOnUse">
+              <stop offset="50%" stop-color="#21a85a"/>
+              <stop offset="50%" stop-color="#1e74c7"/>
+            </linearGradient>
+          </defs>
+          <path fill="url(#viseHeartFill)" d="M16 27.35c-.4 0-.78-.12-1.1-.36C9.7 23.2 5.2 19.4 3.85 16.05 2.7 13.2 3.15 9.7 5.7 8.05c1.55-1 3.55-1.05 5.2-.15 1.1.6 2 1.55 2.55 2.65.55-1.1 1.45-2.05 2.55-2.65 1.65-.9 3.65-.85 5.2.15 2.55 1.65 3 5.15 1.85 8-1.35 3.35-5.85 7.15-11.05 10.94-.32.24-.7.36-1.1.36z"/>
+        </svg>
+        <span class="vise-brand-title">VISE-MT</span>
+      </div>
+      <h2 class="card-title text-center mb-4">Entrar no painel</h2>
+      <div class="mb-3">
+        <label class="form-label">E-mail</label>
+        {% if error %}
+        <input name="username" type="text" class="form-control is-invalid" placeholder="E-mail"
+          autocomplete="off">
+        <div class="invalid-feedback">{{ error }}</div>
+        {% else %}
+        <input name="username" type="text" class="form-control" placeholder="E-mail" autocomplete="off">
+        {% endif %}
+      </div>
+      <div class="mb-2">
+        <label class="form-label">Senha</label>
+        <div class="input-group input-group-flat">
+          {% if error %}
+          <input name="password" type="password" class="form-control is-invalid" placeholder="Senha"
+            autocomplete="off">
+          <div class="invalid-feedback">{{ error }}</div>
+          {% else %}
+          <input name="password" type="password" class="form-control" placeholder="Senha" autocomplete="off">
+          {% endif %}
+        </div>
+      </div>
+      <div class="form-footer">
+        <button type="submit" class="btn btn-primary w-100">Entrar</button>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

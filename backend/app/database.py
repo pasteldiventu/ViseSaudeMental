@@ -15,7 +15,8 @@ SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 
 class Base(DeclarativeBase):
-    pass
+    def __repr__(self) -> str:
+        return self.__str__()
 
 
 def get_db() -> Generator[Session, None, None]:
