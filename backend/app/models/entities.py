@@ -425,6 +425,9 @@ class AplicacaoQuestionario(TimestampMixin, SoftDeleteMixin, Base):
     status: Mapped[str] = mapped_column(
         String(30), default="ativa", server_default="ativa"
     )
+    codigo_sala: Mapped[str | None] = mapped_column(
+        String(12), unique=True, nullable=True, index=True
+    )
 
     questionario: Mapped["Questionario"] = relationship(back_populates="aplicacoes")
     escola: Mapped["Escola"] = relationship(back_populates="aplicacoes")
@@ -437,7 +440,8 @@ class AplicacaoQuestionario(TimestampMixin, SoftDeleteMixin, Base):
         titulo = (
             _rel_attr(self, "questionario", "nome") or f"Aplicação #{self.id}"
         )
-        return f"{titulo} · {_txt(self.alvo_tipo)} · {_txt(self.status)}"
+        codigo = f" · {self.codigo_sala}" if self.codigo_sala else ""
+        return f"{titulo} · {_txt(self.alvo_tipo)} · {_txt(self.status)}{codigo}"
 
 
 class Resposta(TimestampMixin, Base):

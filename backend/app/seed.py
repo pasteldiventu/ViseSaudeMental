@@ -1,3 +1,5 @@
+import secrets
+import string
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import select
@@ -18,6 +20,22 @@ from app.models import (
     User,
 )
 from app.security.passwords import hash_password
+
+
+def _codigo_sala(db: Session) -> str:
+    alphabet = string.ascii_uppercase + string.digits
+    for _ in range(40):
+        codigo = "".join(secrets.choice(alphabet) for _ in range(6))
+        if (
+            db.scalar(
+                select(AplicacaoQuestionario.id).where(
+                    AplicacaoQuestionario.codigo_sala == codigo
+                )
+            )
+            is None
+        ):
+            return codigo
+    return secrets.token_hex(3).upper()
 
 
 def seed_demo(db: Session) -> None:
@@ -279,16 +297,18 @@ def seed_demo(db: Session) -> None:
     )
     if aplicacao is None:
         agora = datetime.utcnow()
-        db.add(
-            AplicacaoQuestionario(
-                questionario_id=questionario.id,
-                escola_id=escola.id,
-                alvo_tipo="escola",
-                status="ativa",
-                inicia_em=agora - timedelta(days=1),
-                termina_em=agora + timedelta(days=365),
-            )
+        aplicacao = AplicacaoQuestionario(
+            questionario_id=questionario.id,
+            escola_id=escola.id,
+            alvo_tipo="escola",
+            status="ativa",
+            codigo_sala=_codigo_sala(db),
+            inicia_em=agora - timedelta(days=1),
+            termina_em=agora + timedelta(days=365),
         )
+        db.add(aplicacao)
+    elif not aplicacao.codigo_sala:
+        aplicacao.codigo_sala = _codigo_sala(db)
 
     questionario_b = db.scalar(
         select(Questionario).where(
@@ -370,14 +390,16 @@ def seed_demo(db: Session) -> None:
     )
     if aplicacao_b is None:
         agora = datetime.utcnow()
-        db.add(
-            AplicacaoQuestionario(
-                questionario_id=questionario_b.id,
-                escola_id=escola.id,
-                alvo_tipo="escola",
-                status="ativa",
-                inicia_em=agora - timedelta(days=1),
-                termina_em=agora + timedelta(days=365),
-            )
+        aplicacao_b = AplicacaoQuestionario(
+            questionario_id=questionario_b.id,
+            escola_id=escola.id,
+            alvo_tipo="escola",
+            status="ativa",
+            codigo_sala=_codigo_sala(db),
+            inicia_em=agora - timedelta(days=1),
+            termina_em=agora + timedelta(days=365),
         )
+        db.add(aplicacao_b)
+    elif not aplicacao_b.codigo_sala:
+        aplicacao_b.codigo_sala = _codigo_sala(db)
     db.commit()

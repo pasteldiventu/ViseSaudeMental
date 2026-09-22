@@ -19,9 +19,18 @@ from app.schemas.aluno_api import (
     CategoriasResponse,
     PerguntasResponse,
 )
+from app.schemas.staff_api import (
+    EntrarSalaRequest,
+    EntrarSalaResponse,
+    SalaPublica,
+)
 
 
 router = APIRouter(prefix="", tags=["aplicações"])
+
+
+def _normalizar_codigo(codigo: str) -> str:
+    return "".join(ch for ch in codigo.strip().upper() if ch.isalnum())
 
 
 def _alvo_do_aluno(aluno: Aluno):
@@ -107,6 +116,66 @@ def listar_aplicacoes(
             }
         )
     return {"data": data}
+
+
+@router.get("/salas/{codigo}", response_model=SalaPublica)
+def sala_publica(codigo: str, db: Annotated[Session, Depends(get_db)]):
+    codigo_norm = _normalizar_codigo(codigo)
+    aplicacao = db.scalar(
+        select(AplicacaoQuestionario)
+        .options(
+            selectinload(AplicacaoQuestionario.questionario),
+            selectinload(AplicacaoQuestionario.escola),
+        )
+        .where(
+            AplicacaoQuestionario.codigo_sala == codigo_norm,
+            AplicacaoQuestionario.status == "ativa",
+            AplicacaoQuestionario.deleted_at.is_(None),
+        )
+    )
+    if aplicacao is None:
+        raise HTTPException(status_code=404, detail="Sala não encontrada.")
+    return SalaPublica(
+        codigo=aplicacao.codigo_sala or codigo_norm,
+        questionario_nome=aplicacao.questionario.nome
+        if aplicacao.questionario
+        else "Questionário",
+        escola_nome=aplicacao.escola.nome if aplicacao.escola else "Escola",
+        alvo_tipo=aplicacao.alvo_tipo,
+        status=aplicacao.status,
+    )
+
+
+@router.post("/aplicacoes/entrar-com-codigo", response_model=EntrarSalaResponse)
+def entrar_com_codigo(
+    payload: EntrarSalaRequest,
+    aluno: Annotated[Aluno, Depends(get_current_aluno)],
+    db: Annotated[Session, Depends(get_db)],
+):
+    codigo_norm = _normalizar_codigo(payload.codigo)
+    aplicacao = db.scalar(
+        select(AplicacaoQuestionario)
+        .options(selectinload(AplicacaoQuestionario.questionario))
+        .where(
+            AplicacaoQuestionario.codigo_sala == codigo_norm,
+            AplicacaoQuestionario.status == "ativa",
+            AplicacaoQuestionario.deleted_at.is_(None),
+            AplicacaoQuestionario.escola_id == aluno.escola_id,
+            _alvo_do_aluno(aluno),
+        )
+    )
+    if aplicacao is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Sala não encontrada ou você não faz parte do público desta sala.",
+        )
+    return EntrarSalaResponse(
+        aplicacao_id=aplicacao.id,
+        questionario_nome=aplicacao.questionario.nome
+        if aplicacao.questionario
+        else "Questionário",
+        codigo=aplicacao.codigo_sala or codigo_norm,
+    )
 
 
 @router.get(

@@ -4,9 +4,10 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-android {
+    android {
     namespace = "br.com.vise.vise_sma_app"
-    compileSdk = flutter.compileSdkVersion
+    // flutter_secure_storage exige SDK 37+
+    compileSdk = maxOf(37, flutter.compileSdkVersion)
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

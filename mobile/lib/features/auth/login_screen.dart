@@ -168,6 +168,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   fontSize: 14,
                 ),
               ),
+              if (ref.watch(appControllerProvider).codigoSalaPendente !=
+                  null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Sala ${ref.watch(appControllerProvider).codigoSalaPendente} será aberta após o login.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.figtree(
+                    color: AppColors.mint,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ],
           ),
         ),

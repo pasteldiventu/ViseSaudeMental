@@ -14,6 +14,7 @@ class HomeQuestionariosScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final database = ref.watch(databaseProvider);
+    final controller = ref.watch(appControllerProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('MEUS QUESTIONÁRIOS'),
@@ -58,6 +59,25 @@ class HomeQuestionariosScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 22),
+              _CodigoSalaField(
+                codigoInicial: controller.codigoSalaPendente,
+                onEntrar: (codigo) async {
+                  final ok = await ref
+                      .read(appControllerProvider)
+                      .entrarComCodigo(codigo);
+                  if (!ok && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          ref.read(appControllerProvider).erro ??
+                              'Não foi possível entrar na sala.',
+                        ),
+                      ),
+                    );
+                  }
+                },
+              ),
+              const SizedBox(height: 22),
               if (apps.isEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 48),
@@ -77,6 +97,73 @@ class HomeQuestionariosScreen extends ConsumerWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+
+class _CodigoSalaField extends StatefulWidget {
+  const _CodigoSalaField({this.codigoInicial, required this.onEntrar});
+
+  final String? codigoInicial;
+  final Future<void> Function(String codigo) onEntrar;
+
+  @override
+  State<_CodigoSalaField> createState() => _CodigoSalaFieldState();
+}
+
+class _CodigoSalaFieldState extends State<_CodigoSalaField> {
+  late final TextEditingController _codigo;
+
+  @override
+  void initState() {
+    super.initState();
+    _codigo = TextEditingController(text: widget.codigoInicial ?? '');
+  }
+
+  @override
+  void dispose() {
+    _codigo.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceRaised,
+        borderRadius: BorderRadius.circular(AppRadii.md),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Tem um código de sala?',
+            style: GoogleFonts.figtree(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _codigo,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: const InputDecoration(
+                    hintText: 'Ex.: A1B2C3',
+                    isDense: true,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              FilledButton(
+                onPressed: () => widget.onEntrar(_codigo.text),
+                child: const Text('Entrar'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

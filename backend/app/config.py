@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     app_env: str = "local"
     app_debug: bool = True
     app_url: str = "http://localhost:8000"
+    public_app_url: str = "http://localhost:8081"
     secret_key: str = "change-me-in-production-vise-sma-secret"
     access_token_expire_minutes: int = 60 * 24 * 7
 

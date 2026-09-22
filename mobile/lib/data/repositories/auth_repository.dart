@@ -53,9 +53,12 @@ class AuthRepository {
     }
   }
 
-  Future<bool> temSessaoOuCache() async =>
-      await storage.containsKey(key: ApiClient.tokenKey) &&
-      (await database.listarAplicacoes()).isNotEmpty;
+  Future<bool> temSessaoOuCache() async {
+    final mode = await storage.read(key: ApiClient.sessionModeKey);
+    if (mode == 'staff') return false;
+    return await storage.containsKey(key: ApiClient.tokenKey) &&
+        (await database.listarAplicacoes()).isNotEmpty;
+  }
 
   Future<void> logout() async {
     try {

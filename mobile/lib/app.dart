@@ -3,11 +3,12 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/app_theme.dart';
-import 'features/auth/login_screen.dart';
+import 'features/auth/role_gate_screen.dart';
 import 'features/avatar/avatar_intro_screen.dart';
 import 'features/categories/categories_screen.dart';
 import 'features/common/responsive_shell.dart';
 import 'features/home/home_questionarios_screen.dart';
+import 'features/staff/staff_home_screen.dart';
 import 'features/termo/termo_screen.dart';
 import 'providers/app_providers.dart';
 
@@ -54,7 +55,10 @@ class _ViseAppState extends ConsumerState<ViseApp> {
       );
     }
     if (!controller.autenticado) {
-      return const LoginScreen();
+      return const RoleGateScreen();
+    }
+    if (controller.modoStaff) {
+      return const StaffHomeScreen();
     }
     if (!controller.termoAceito) {
       return TermoScreen(onAccepted: controller.registrarTermoAceito);

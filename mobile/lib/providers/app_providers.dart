@@ -10,6 +10,7 @@ import '../core/network/api_client.dart';
 import '../data/local/app_database.dart';
 import '../data/repositories/auth_repository.dart';
 import '../data/repositories/quiz_repository.dart';
+import '../data/repositories/staff_repository.dart';
 import '../data/repositories/sync_repository.dart';
 
 final databaseProvider = Provider<AppDatabase>((ref) {
@@ -39,6 +40,13 @@ final authRepositoryProvider = Provider<AuthRepository>(
   ),
 );
 
+final staffRepositoryProvider = Provider<StaffRepository>(
+  (ref) => StaffRepository(
+    ref.watch(apiClientProvider),
+    ref.watch(secureStorageProvider),
+  ),
+);
+
 final quizRepositoryProvider = Provider<QuizRepository>(
   (ref) =>
       QuizRepository(ref.watch(apiClientProvider), ref.watch(databaseProvider)),
@@ -57,6 +65,7 @@ final syncRepositoryProvider = Provider<SyncRepository>((ref) {
 final appControllerProvider = ChangeNotifierProvider<AppController>((ref) {
   final controller = AppController(
     ref.watch(authRepositoryProvider),
+    ref.watch(staffRepositoryProvider),
     ref.watch(quizRepositoryProvider),
     ref.watch(syncRepositoryProvider),
     ref.watch(databaseProvider),
@@ -66,17 +75,26 @@ final appControllerProvider = ChangeNotifierProvider<AppController>((ref) {
 });
 
 class AppController extends ChangeNotifier {
-  AppController(this.auth, this.quiz, this.sync, this.database) {
+  AppController(
+    this.auth,
+    this.staffRepo,
+    this.quiz,
+    this.sync,
+    this.database,
+  ) {
     _connectivitySubscription = Connectivity().onConnectivityChanged.listen((
       results,
     ) {
-      if (!results.contains(ConnectivityResult.none) && aplicacaoId != null) {
+      if (!results.contains(ConnectivityResult.none) &&
+          !modoStaff &&
+          aplicacaoId != null) {
         unawaited(sync.sincronizar(aplicacaoId!).catchError((_) {}));
       }
     });
   }
 
   final AuthRepository auth;
+  final StaffRepository staffRepo;
   final QuizRepository quiz;
   final SyncRepository sync;
   final AppDatabase database;
@@ -85,17 +103,33 @@ class AppController extends ChangeNotifier {
   bool inicializando = true;
   bool carregando = false;
   bool autenticado = false;
+  bool modoStaff = false;
+  StaffUser? staffUser;
   bool termoAceito = false;
   bool avatarIntroduzido = false;
   int? aplicacaoId;
+  String? codigoSalaPendente;
   String? erro;
 
   Future<void> inicializar() async {
-    autenticado = await auth.temSessaoOuCache();
-    if (autenticado) {
-      await _carregarTermoAceito();
-      if (aplicacaoId != null) {
-        await _carregarAvatarIntro();
+    final mode = await auth.storage.read(key: ApiClient.sessionModeKey);
+    if (mode == 'staff') {
+      staffUser = await staffRepo.sessaoAtual();
+      modoStaff = staffUser != null;
+      autenticado = modoStaff;
+    } else {
+      autenticado = await auth.temSessaoOuCache();
+      if (autenticado) {
+        await _carregarTermoAceito();
+        if (aplicacaoId != null) {
+          await _carregarAvatarIntro();
+        }
+      }
+    }
+    if (kIsWeb) {
+      final sala = Uri.base.queryParameters['sala'];
+      if (sala != null && sala.trim().isNotEmpty) {
+        codigoSalaPendente = sala.trim().toUpperCase();
       }
     }
     inicializando = false;
@@ -107,17 +141,25 @@ class AppController extends ChangeNotifier {
     erro = null;
     notifyListeners();
     try {
+      await staffRepo.logout();
       final result = await auth.login(cpf, nascimento);
+      await auth.storage.write(key: ApiClient.sessionModeKey, value: 'aluno');
       if (!result.offline) {
         await quiz.atualizarCache();
       }
       final apps = await database.listarAplicacoes();
       autenticado = true;
+      modoStaff = false;
+      staffUser = null;
       aplicacaoId = null;
       avatarIntroduzido = false;
       await _carregarTermoAceito();
       if (apps.isEmpty) {
         erro = 'Nenhum questionário disponível.';
+      }
+      final codigo = codigoSalaPendente;
+      if (codigo != null && codigo.isNotEmpty) {
+        await entrarComCodigo(codigo);
       }
       return true;
     } on DioException catch (error, stack) {
@@ -136,9 +178,86 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  Future<bool> entrarStaff(String email, String password) async {
+    carregando = true;
+    erro = null;
+    notifyListeners();
+    try {
+      await auth.logout();
+      staffUser = await staffRepo.login(email, password);
+      autenticado = true;
+      modoStaff = true;
+      termoAceito = true;
+      avatarIntroduzido = false;
+      aplicacaoId = null;
+      return true;
+    } on DioException catch (error, stack) {
+      debugPrint('Falha login staff: $error\n$stack');
+      final status = error.response?.statusCode;
+      erro = status == 422
+          ? 'E-mail ou senha inválidos.'
+          : status == 403
+              ? 'Usuário sem perfil de equipe ativo.'
+              : 'Não foi possível entrar. Verifique a conexão.';
+      return false;
+    } catch (error, stack) {
+      debugPrint('Falha login staff: $error\n$stack');
+      erro = 'Não foi possível entrar.';
+      return false;
+    } finally {
+      carregando = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> entrarComCodigo(String codigo) async {
+    final limpo = codigo.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toUpperCase();
+    if (limpo.length < 4) {
+      erro = 'Informe o código da sala.';
+      notifyListeners();
+      return false;
+    }
+    carregando = true;
+    erro = null;
+    notifyListeners();
+    try {
+      final response = await auth.api.dio.post<Map<String, dynamic>>(
+        '/aplicacoes/entrar-com-codigo',
+        data: {'codigo': limpo},
+      );
+      final id = response.data?['aplicacao_id'] as int?;
+      if (id == null) {
+        erro = 'Sala inválida.';
+        return false;
+      }
+      await quiz.atualizarCache();
+      codigoSalaPendente = null;
+      await abrirAplicacao(id);
+      return true;
+    } on DioException catch (error) {
+      erro = error.response?.statusCode == 404
+          ? 'Sala não encontrada ou você não faz parte do público.'
+          : 'Não foi possível entrar na sala.';
+      return false;
+    } catch (_) {
+      erro = 'Não foi possível entrar na sala.';
+      return false;
+    } finally {
+      carregando = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> sair() async {
-    await auth.logout();
+    if (modoStaff) {
+      await staffRepo.logout();
+    } else {
+      await auth.logout();
+    }
+    await auth.storage.delete(key: ApiClient.sessionModeKey);
     autenticado = false;
+    modoStaff = false;
+    staffUser = null;
     termoAceito = false;
     avatarIntroduzido = false;
     aplicacaoId = null;

@@ -26,6 +26,24 @@ O entrypoint aguarda o MySQL, cria tabelas, roda o seed e sobe o Uvicorn na port
 | Professor | `professor@vise.local` / `password` |
 | Aluno demo | CPF `07593256189` · nascimento `2009-10-21` |
 
+### App Flutter — aluno e equipe
+
+O mesmo app serve **aluno** e **equipe** (admin / pesquisador / professor):
+
+1. Na abertura: escolha **Sou aluno** ou **Sou da equipe**
+2. Equipe: login e-mail/senha → **Nova sala** → gera **código + link** (`/?sala=CODIGO`)
+3. Aluno: após login, usa o código na home ou abre o link compartilhado
+
+```bash
+cd mobile
+flutter pub get
+flutter run -d web-server --web-port=8081 \
+  --dart-define=API_BASE_URL=http://localhost:8000/api/v1
+```
+
+API staff: `POST /api/v1/staff/login`, `GET/POST /api/v1/staff/salas`, `POST /api/v1/aplicacoes/entrar-com-codigo`.
+
+
 ### Comandos úteis
 
 ```bash
@@ -73,6 +91,16 @@ Device físico / outra URL:
 
 ```bash
 flutter run --dart-define=API_BASE_URL=http://SEU_IP:8000/api/v1
+```
+
+### Shorebird (code push Android)
+
+O app Android está integrado ao **Shorebird** para atualizações OTA de código Dart. Ver [`docs/shorebird.md`](docs/shorebird.md).
+
+```bash
+cd mobile
+shorebird release android -- --dart-define=API_BASE_URL=https://api.seudominio/api/v1
+shorebird patch android -- --dart-define=API_BASE_URL=https://api.seudominio/api/v1
 ```
 
 Fluxo: **login → termo → avatar → categorias → perguntas** (SQLite / IndexedDB na web) → sync em lote → finalizar.

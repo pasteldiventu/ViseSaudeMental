@@ -16,7 +16,12 @@ class ApiClient {
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          final token = await storage.read(key: tokenKey);
+          final path = options.path;
+          final useStaff =
+              path.startsWith('/staff') && !path.startsWith('/staff/login');
+          final token = await storage.read(
+            key: useStaff ? staffTokenKey : tokenKey,
+          );
           if (token != null) {
             options.headers['Authorization'] = 'Bearer $token';
           }
@@ -27,6 +32,8 @@ class ApiClient {
   }
 
   static const tokenKey = 'auth_token';
+  static const staffTokenKey = 'staff_token';
+  static const sessionModeKey = 'session_mode';
   final FlutterSecureStorage storage;
   final Dio dio;
 
