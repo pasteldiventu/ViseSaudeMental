@@ -24,6 +24,8 @@ class ApiClient {
           );
           if (token != null) {
             options.headers['Authorization'] = 'Bearer $token';
+            // Algumas hospedagens PHP (Apache + CGI) descartam o Authorization.
+            options.headers['X-Auth-Token'] = token;
           }
           handler.next(options);
         },
