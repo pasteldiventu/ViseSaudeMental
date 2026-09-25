@@ -35,7 +35,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final success = await ref
         .read(appControllerProvider)
         .entrar(_cpf.text, DateFormat('yyyy-MM-dd').format(nascimento));
-    if (!success && mounted) {
+    if (!mounted) return;
+    if (success) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

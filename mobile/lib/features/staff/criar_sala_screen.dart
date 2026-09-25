@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../data/repositories/cadastros_repository.dart';
 import '../../data/repositories/staff_repository.dart';
 import '../../providers/app_providers.dart';
 
@@ -78,10 +79,10 @@ class _CriarSalaScreenState extends ConsumerState<CriarSalaScreen> {
             turmaId: _alvo == 'turma' ? _turmaId : null,
           );
       if (mounted) Navigator.of(context).pop(sala);
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(() {
-        _erro = 'Não foi possível criar a sala.';
+        _erro = mensagemDeErro(error, 'Não foi possível criar a sala.');
         _salvando = false;
       });
     }

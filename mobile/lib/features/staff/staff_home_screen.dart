@@ -8,10 +8,14 @@ import '../../core/theme/app_theme.dart';
 import '../../data/repositories/staff_repository.dart';
 import '../../providers/app_providers.dart';
 import '../common/brand_and_progress.dart';
+import 'cadastros/cadastro_icons.dart';
 import 'criar_sala_screen.dart';
 
 class StaffHomeScreen extends ConsumerStatefulWidget {
-  const StaffHomeScreen({super.key});
+  const StaffHomeScreen({super.key, this.drawer, this.onAbrirCadastro});
+
+  final Widget? drawer;
+  final ValueChanged<String>? onAbrirCadastro;
 
   @override
   ConsumerState<StaffHomeScreen> createState() => _StaffHomeScreenState();
@@ -149,7 +153,13 @@ class _StaffHomeScreenState extends ConsumerState<StaffHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(appControllerProvider).staffUser;
+    final menu = ref.watch(cadastrosMenuProvider).value;
+    final atalhos = [
+      for (final key in const ['questionarios', 'aplicacoes', 'resultados', 'turmas', 'alunos', 'usuarios'])
+        ?menu?.cadastros[key],
+    ];
     return Scaffold(
+      drawer: widget.drawer,
       appBar: AppBar(
         title: const Text('SALAS'),
         actions: [
@@ -193,6 +203,48 @@ class _StaffHomeScreenState extends ConsumerState<StaffHomeScreen> {
                 style: GoogleFonts.figtree(color: AppColors.muted),
               ),
               const SizedBox(height: 22),
+            ],
+            if (atalhos.isNotEmpty && widget.onAbrirCadastro != null) ...[
+              Text(
+                'GESTÃO',
+                style: GoogleFonts.figtree(
+                  color: AppColors.muted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.1,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final meta in atalhos)
+                    ActionChip(
+                      avatar: Icon(iconeDoCadastro(meta.key), size: 18, color: AppColors.mint),
+                      label: Text(meta.plural),
+                      backgroundColor: AppColors.surfaceRaised,
+                      side: const BorderSide(color: AppColors.border),
+                      onPressed: () => widget.onAbrirCadastro!(meta.key),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Todos os cadastros ficam no menu ☰.',
+                style: GoogleFonts.figtree(color: AppColors.muted, fontSize: 12.5),
+              ),
+              const SizedBox(height: 22),
+              Text(
+                'SALAS',
+                style: GoogleFonts.figtree(
+                  color: AppColors.muted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.1,
+                ),
+              ),
+              const SizedBox(height: 10),
             ],
             if (_loading)
               const Padding(

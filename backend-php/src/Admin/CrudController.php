@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Vise\Admin;
 
-use PDOException;
-use Vise\Db;
 use Vise\Http\HttpError;
 use Vise\Http\Request;
 use Vise\Http\Response;
@@ -14,8 +12,6 @@ use Vise\Support\Str;
 
 final class CrudController
 {
-    private const PER_PAGE = 25;
-
     /** @param array<string, string> $p */
     public static function index(Request $request, array $p): Response
     {
@@ -23,40 +19,11 @@ final class CrudController
         $res = self::resource($p, $ctx);
         $key = $res['key'];
 
-        [$where, $params] = Scope::where($key, $ctx);
-        $filters = self::filters($res, $request);
-        foreach ($filters as $field => $value) {
-            $where .= " AND t.`$field` = ?";
-            $params[] = $value;
-        }
-        $q = trim((string) ($request->query['q'] ?? ''));
-        if ($q !== '' && $res['search'] !== []) {
-            $likes = [];
-            foreach ($res['search'] as $column) {
-                $likes[] = "t.`$column` LIKE ?";
-                $params[] = '%' . $q . '%';
-                if (($res['fields'][$column]['display'] ?? '') === 'cpf' && Str::digits($q) !== '') {
-                    $likes[] = "t.`$column` LIKE ?";
-                    $params[] = '%' . Str::digits($q) . '%';
-                }
-            }
-            $where .= ' AND (' . implode(' OR ', $likes) . ')';
-        }
-
-        $sort = (string) ($request->query['sort'] ?? '');
-        $dir = ($request->query['dir'] ?? '') === 'asc' ? 'ASC' : 'DESC';
-        $order = in_array($sort, $res['list'], true) ? "t.`$sort` $dir, t.id DESC" : ($res['order'] ?? 't.id DESC');
-
-        $total = (int) Db::value("SELECT COUNT(*) FROM `{$res['table']}` t WHERE $where", $params);
-        $pages = max(1, (int) ceil($total / self::PER_PAGE));
-        $page = min($pages, max(1, (int) ($request->query['page'] ?? 1)));
-        $rows = Db::all(
-            "SELECT t.* FROM `{$res['table']}` t WHERE $where ORDER BY $order LIMIT " . self::PER_PAGE . ' OFFSET ' . (($page - 1) * self::PER_PAGE),
-            $params
-        );
-        $titles = self::fkTitles($res, $rows, $res['list']);
-        $writable = self::writable($res, $ctx);
-        $actions = self::bulkActions($res, $ctx);
+        $found = Records::search($res, $ctx, $request->query);
+        ['rows' => $rows, 'total' => $total, 'page' => $page, 'pages' => $pages, 'filters' => $filters, 'q' => $q, 'sort' => $sort, 'dir' => $dir] = $found;
+        $titles = Records::fkTitles($res, $rows, $res['list']);
+        $writable = Records::writable($res, $ctx);
+        $actions = Records::actions($res, $ctx);
         $baseQuery = array_merge($filters, ['q' => $q, 'sort' => $sort ?: null, 'dir' => $sort ? strtolower($dir) : null]);
 
         $html = '<div class="card">';
@@ -156,8 +123,8 @@ final class CrudController
         $ctx = self::ctx($request);
         $res = self::resource($p, $ctx);
         $key = $res['key'];
-        $row = self::findRow($res, (int) $p['id'], $ctx, false);
-        $titles = self::fkTitles($res, [$row], array_keys($res['fields']));
+        $row = Records::findRow($res, (int) $p['id'], $ctx, false);
+        $titles = Records::fkTitles($res, [$row], array_keys($res['fields']));
 
         $html = '<div class="card"><dl class="details">';
         foreach ($res['fields'] as $name => $field) {
@@ -178,7 +145,7 @@ final class CrudController
         $html .= self::related($res, $row, $ctx);
 
         $top = '<a class="btn" href="' . View::e(Url::to("/admin/$key")) . '">‹ Voltar</a>';
-        if (self::writable($res, $ctx) && Resources::inScope($key, (int) $row['id'], $ctx, true)) {
+        if (Records::writable($res, $ctx) && Resources::inScope($key, (int) $row['id'], $ctx, true)) {
             $top .= ' <a class="btn btn-primary" href="' . View::e(Url::to("/admin/$key/{$row['id']}/edit")) . '">Editar</a>'
                 . ' <form class="inline" method="post" action="' . View::e(Url::to("/admin/$key/{$row['id']}/delete")) . '" onsubmit="return confirm(\'Excluir este registro?\')">'
                 . View::csrfField() . '<button class="btn btn-danger" type="submit">Excluir</button></form>';
@@ -214,7 +181,7 @@ final class CrudController
     {
         $ctx = self::ctx($request);
         $res = self::resource($p, $ctx, true);
-        $row = self::findRow($res, (int) $p['id'], $ctx, true);
+        $row = Records::findRow($res, (int) $p['id'], $ctx, true);
         return self::form($ctx, $res, $row, $row);
     }
 
@@ -230,8 +197,8 @@ final class CrudController
         $ctx = self::ctx($request);
         $res = self::resource($p, $ctx, true);
         Auth::checkCsrf($request);
-        $row = self::findRow($res, (int) $p['id'], $ctx, true);
-        $error = self::deleteRow($res, $row, $ctx);
+        $row = Records::findRow($res, (int) $p['id'], $ctx, true);
+        $error = Records::deleteRow($res, $row, $ctx);
         if ($error !== null) {
             Auth::flash('error', $error);
             return Response::redirect(Url::to("/admin/{$res['key']}/{$row['id']}"));
@@ -246,40 +213,29 @@ final class CrudController
         $ctx = self::ctx($request);
         $res = self::resource($p, $ctx);
         Auth::checkCsrf($request);
-        $key = $res['key'];
-        $back = Response::redirect(Url::to("/admin/$key"));
+        $back = Response::redirect(Url::to("/admin/{$res['key']}"));
         $name = (string) ($request->post['action'] ?? '');
-        $ids = array_values(array_unique(array_map('intval', array_filter(
+        $ids = array_values(array_map('intval', array_filter(
             (array) ($request->post['ids'] ?? []),
             static fn ($id) => is_string($id) && ctype_digit($id)
-        ))));
-        $actions = self::bulkActions($res, $ctx);
-        if (!isset($actions[$name])) {
+        )));
+        if (!isset(Records::actions($res, $ctx)[$name])) {
             throw new HttpError(403, 'Ação não permitida para o seu perfil.');
         }
         if ($ids === []) {
             Auth::flash('warning', 'Selecione ao menos um registro.');
             return $back;
         }
-        $ids = array_values(array_filter($ids, static fn (int $id) => Resources::inScope($key, $id, $ctx, true)));
-
-        if ($name === 'excluir') {
-            $ok = 0;
-            $erros = [];
-            foreach ($ids as $id) {
-                $row = Db::one("SELECT * FROM `{$res['table']}` WHERE id = ?", [$id]);
-                $error = $row === null ? null : self::deleteRow($res, $row, $ctx);
-                if ($error === null) {
-                    $ok++;
-                } else {
-                    $erros[] = $error;
-                }
+        try {
+            ['message' => $message, 'ok' => $ok] = Records::runAction($res, $ctx, $name, $ids);
+        } catch (HttpError $error) {
+            if ($error->status !== 422) {
+                throw $error;
             }
-            Auth::flash($erros === [] ? 'success' : 'warning', "$ok registro(s) excluído(s)." . ($erros ? ' ' . implode(' ', array_unique($erros)) : ''));
+            Auth::flash('warning', $error->getMessage());
             return $back;
         }
-
-        Auth::flash('success', ($actions[$name]['handler'])($ids, $ctx));
+        Auth::flash($ok ? 'success' : 'warning', $message);
         return $back;
     }
 
@@ -300,104 +256,19 @@ final class CrudController
      */
     private static function resource(array $p, Ctx $ctx, bool $write = false): array
     {
-        $res = Resources::get($p['resource']) ?? throw new HttpError(404, 'Cadastro não encontrado.');
-        if (!$ctx->canAccess($res['perm'])) {
-            throw new HttpError(403, 'Seu perfil não tem acesso a este cadastro.');
-        }
-        if ($write && !self::writable($res, $ctx)) {
-            throw new HttpError(403, 'Seu perfil não pode alterar este cadastro.');
-        }
-        return $res;
-    }
-
-    private static function writable(array $res, Ctx $ctx): bool
-    {
-        return empty($res['readonly']) && $ctx->canWrite($res['perm']);
-    }
-
-    /** @return array<string, array<string, mixed>> */
-    private static function bulkActions(array $res, Ctx $ctx): array
-    {
-        if (!self::writable($res, $ctx)) {
-            return [];
-        }
-        $actions = [];
-        foreach ($res['actions'] ?? [] as $name => $action) {
-            if (empty($action['su_only']) || $ctx->su) {
-                $actions[$name] = $action;
-            }
-        }
-        $actions['excluir'] = ['label' => 'Excluir selecionados', 'confirm' => 'Excluir os registros selecionados?'];
-        return $actions;
-    }
-
-    /** @return array<string, mixed> */
-    private static function findRow(array $res, int $id, Ctx $ctx, bool $strict): array
-    {
-        [$where, $params] = Scope::where($res['key'], $ctx, $strict);
-        $row = Db::one("SELECT t.* FROM `{$res['table']}` t WHERE t.id = ? AND $where", array_merge([$id], $params));
-        if ($row === null) {
-            throw new HttpError(404, 'Registro não encontrado ou fora do seu escopo.');
-        }
-        return $row;
-    }
-
-    /** @return array<string, int> filtros ?campo=id para colunas de chave estrangeira */
-    private static function filters(array $res, Request $request): array
-    {
-        $filters = [];
-        foreach ($res['fields'] as $name => $field) {
-            $value = $request->query[$name] ?? null;
-            if ($field['type'] === 'fk' && empty($field['virtual']) && is_string($value) && ctype_digit($value)) {
-                $filters[$name] = (int) $value;
-            }
-        }
-        return $filters;
-    }
-
-    /**
-     * @param list<array<string, mixed>> $rows
-     * @param list<string> $columns
-     * @return array<string, array<int, string>>
-     */
-    private static function fkTitles(array $res, array $rows, array $columns): array
-    {
-        $titles = [];
-        foreach ($columns as $column) {
-            $field = $res['fields'][$column] ?? null;
-            if ($field === null || $field['type'] !== 'fk' || !empty($field['virtual'])) {
-                continue;
-            }
-            $ids = array_map('intval', array_filter(array_column($rows, $column), static fn ($v) => $v !== null));
-            $titles[$column] = Resources::titles($field['ref'], $ids);
-        }
-        return $titles;
+        return Records::resource($p['resource'], $ctx, $write);
     }
 
     /** Links para cadastros que apontam para este registro (ex.: categorias de um questionário). */
     private static function related(array $res, array $row, Ctx $ctx): string
     {
         $links = '';
-        foreach (Resources::all() as $childKey => $child) {
-            if (!$ctx->canAccess($child['perm'])) {
-                continue;
+        foreach (Records::related($res, $row, $ctx) as $item) {
+            $links .= '<li><a href="' . View::e(Url::to("/admin/{$item['key']}", [$item['field'] => $row['id']])) . '">' . View::e($item['label']) . '</a> <span class="badge">' . $item['count'] . '</span>';
+            if ($item['can_add']) {
+                $links .= ' <a class="small" href="' . View::e(Url::to("/admin/{$item['key']}/create", [$item['field'] => $row['id']])) . '">+ adicionar</a>';
             }
-            foreach ($child['fields'] as $name => $field) {
-                if ($field['type'] !== 'fk' || ($field['ref'] ?? '') !== $res['key'] || !empty($field['virtual'])) {
-                    continue;
-                }
-                [$where, $params] = Scope::where($childKey, $ctx);
-                $count = (int) Db::value(
-                    "SELECT COUNT(*) FROM `{$child['table']}` t WHERE t.`$name` = ? AND $where",
-                    array_merge([$row['id']], $params)
-                );
-                $label = $child['plural'] . ($name === 'parent_id' ? ' (versões seguintes)' : '');
-                $links .= '<li><a href="' . View::e(Url::to("/admin/$childKey", [$name => $row['id']])) . '">' . View::e($label) . '</a> <span class="badge">' . $count . '</span>';
-                if (empty($child['readonly']) && $ctx->canWrite($child['perm']) && ($field['form'] ?? true) !== false) {
-                    $links .= ' <a class="small" href="' . View::e(Url::to("/admin/$childKey/create", [$name => $row['id']])) . '">+ adicionar</a>';
-                }
-                $links .= '</li>';
-            }
+            $links .= '</li>';
         }
         return $links === '' ? '' : '<div class="card"><h3>Relacionados</h3><ul class="related">' . $links . '</ul></div>';
     }
@@ -447,21 +318,14 @@ final class CrudController
     /** JSON de resultado: chaves são IDs de categoria. */
     private static function displayJson(string $json, bool $list): string
     {
-        $data = json_decode($json, true);
-        if (!is_array($data)) {
-            return View::e($json);
+        $pairs = $list ? null : Records::jsonPairs($json);
+        if ($pairs === null) {
+            return View::e($list ? Str::limit($json, 60) : $json);
         }
-        if ($list) {
-            return View::e(Str::limit($json, 60));
-        }
-        $titles = Resources::titles('categorias', array_map('intval', array_filter(array_keys($data), 'is_numeric')));
         $html = '<table class="mini"><tbody>';
-        foreach ($data as $categoria => $valor) {
-            if (is_array($valor)) {
-                $valor = trim(($valor['rotulo'] ?? '') . (empty($valor['descricao']) ? '' : ' — ' . $valor['descricao']));
-            }
-            $html .= '<tr><th>' . View::e($titles[(int) $categoria] ?? 'Categoria #' . $categoria) . '</th><td>'
-                . ($valor === null ? '<span class="muted">sem regra</span>' : View::e($valor)) . '</td></tr>';
+        foreach ($pairs as $categoria => $valor) {
+            $html .= '<tr><th>' . View::e($categoria) . '</th><td>'
+                . ($valor === 'sem regra' ? '<span class="muted">sem regra</span>' : View::e($valor)) . '</td></tr>';
         }
         return $html . '</tbody></table>';
     }
@@ -478,7 +342,7 @@ final class CrudController
         if ($error !== null) {
             $html .= '<div class="alert alert-error">' . View::e($error) . '</div>';
         }
-        foreach (self::formFields($res, $ctx, $row) as $name => $field) {
+        foreach (Records::formFields($res, $ctx, $row) as $name => $field) {
             $value = $values[$name] ?? null;
             $required = !empty($field['required']);
             $label = View::e($field['label']) . ($required ? ' <span class="req">*</span>' : '');
@@ -496,7 +360,7 @@ final class CrudController
                 'datetime' => '<input type="datetime-local"' . $attrs . ' value="' . View::e($value ? str_replace(' ', 'T', substr((string) $value, 0, 16)) : '') . '">',
                 'bool' => '<input type="checkbox" value="1" name="' . View::e($name) . '" id="f_' . View::e($name) . '"' . ($value ? ' checked' : '') . '>',
                 'select' => self::select($attrs, $field['options'], $value, $required),
-                'fk' => self::select($attrs, self::fkOptions($field, $ctx, $row, $name), $value, $required),
+                'fk' => self::select($attrs, Records::fkOptions($field, $ctx, $row, $name), $value, $required),
                 'color' => '<input type="text" placeholder="#14B8A6"' . $attrs . ' value="' . View::e($value) . '">',
                 default => '<input type="text"' . $attrs . ' value="' . View::e($value) . '">',
             };
@@ -511,39 +375,6 @@ final class CrudController
 
         $title = $row === null ? 'Novo(a) ' . Str::lower($res['singular']) : 'Editar ' . Str::lower($res['singular']);
         return View::page($ctx, $title, $html, $key, '', $error === null ? 200 : 422);
-    }
-
-    /** @return array<string, array<string, mixed>> */
-    private static function formFields(array $res, Ctx $ctx, ?array $row): array
-    {
-        $fields = [];
-        foreach ($res['fields'] as $name => $field) {
-            if (($field['form'] ?? true) === false || $field['type'] === 'json') {
-                continue;
-            }
-            if (!empty($field['su_only']) && !$ctx->su) {
-                continue;
-            }
-            if (!empty($field['create_only']) && $row !== null) {
-                continue;
-            }
-            if ($name === 'pesquisador_id' && $ctx->pesquisadorOnly()) {
-                continue;
-            }
-            $fields[$name] = $field;
-        }
-        return $fields;
-    }
-
-    /** @return array<int|string, string> */
-    private static function fkOptions(array $field, Ctx $ctx, ?array $row, string $name): array
-    {
-        $options = Resources::options($field['ref'], $ctx, $field['strict'] ?? true);
-        $current = $row[$name] ?? null;
-        if ($current !== null && !isset($options[(int) $current])) {
-            $options[(int) $current] = Resources::title($field['ref'], (int) $current);
-        }
-        return $options;
     }
 
     /** @param array<int|string, string> $options */
@@ -563,183 +394,16 @@ final class CrudController
         $ctx = self::ctx($request);
         $res = self::resource($p, $ctx, true);
         Auth::checkCsrf($request);
-        $row = $id === null ? null : self::findRow($res, $id, $ctx, true);
+        $row = $id === null ? null : Records::findRow($res, $id, $ctx, true);
         $post = $request->post;
 
         try {
-            $data = self::parse($res, $ctx, $post, $row);
-            if (!empty($res['derive_escola'])) {
-                $escolaId = null;
-                foreach ($res['derive_escola'] as [$field, $table]) {
-                    $parent = $data[$field] ?? $row[$field] ?? null;
-                    if (!empty($parent)) {
-                        $escolaId = Db::value("SELECT escola_id FROM `$table` WHERE id = ?", [(int) $parent]);
-                        break;
-                    }
-                }
-                if ($escolaId === null) {
-                    $first = $res['derive_escola'][0][0];
-                    throw new FormError('Informe o campo ' . $res['fields'][$first]['label'] . '.');
-                }
-                $data['escola_id'] = (int) $escolaId;
-            }
-            if (isset($res['validate'])) {
-                ($res['validate'])($data, $row, $ctx, $post);
-            }
-
-            $columns = array_filter(
-                $data,
-                static fn ($name) => empty($res['fields'][$name]['virtual']),
-                ARRAY_FILTER_USE_KEY
-            );
-            $savedId = Db::transaction(static function () use ($res, $row, $columns, $data, $ctx): int {
-                if ($row === null) {
-                    foreach ($res['fields'] as $name => $field) {
-                        if (empty($field['virtual']) && !array_key_exists($name, $columns) && array_key_exists('default', $field)) {
-                            $columns[$name] = $field['default'];
-                        }
-                    }
-                    if (isset($res['defaults'])) {
-                        $columns += ($res['defaults'])();
-                    }
-                    $now = Db::now();
-                    $columns += ['created_at' => $now, 'updated_at' => $now];
-                    $newId = Db::insert($res['table'], $columns);
-                } else {
-                    $newId = (int) $row['id'];
-                    if ($columns !== []) {
-                        Db::update($res['table'], $columns, $newId);
-                    }
-                }
-                if (isset($res['after_save'])) {
-                    ($res['after_save'])($newId, $data, $row === null, $ctx);
-                }
-                return $newId;
-            });
+            $savedId = Records::persist($res, $ctx, $post, $row);
         } catch (FormError $error) {
             return self::form($ctx, $res, $row, $post + ($row ?? []), $error->getMessage());
-        } catch (PDOException $error) {
-            if (Db::isDuplicate($error)) {
-                return self::form($ctx, $res, $row, $post + ($row ?? []), 'Já existe um registro com esses dados (valor que deve ser único está repetido).');
-            }
-            if (Db::isForeignKey($error)) {
-                return self::form($ctx, $res, $row, $post + ($row ?? []), 'Algum dos registros escolhidos não existe mais.');
-            }
-            throw $error;
         }
 
         Auth::flash('success', $res['singular'] . ($row === null ? ' criado(a).' : ' atualizado(a).'));
         return Response::redirect(Url::to("/admin/{$res['key']}/$savedId"));
-    }
-
-    /**
-     * Converte e valida o POST conforme os tipos dos campos.
-     *
-     * @param array<string, mixed> $post
-     * @return array<string, mixed>
-     */
-    private static function parse(array $res, Ctx $ctx, array $post, ?array $row): array
-    {
-        $data = [];
-        foreach (self::formFields($res, $ctx, $row) as $name => $field) {
-            $label = $field['label'];
-            $raw = $post[$name] ?? null;
-            if ($field['type'] === 'bool') {
-                $data[$name] = ($raw !== null && $raw !== '0' && $raw !== '') ? 1 : 0;
-                continue;
-            }
-            $value = is_string($raw) ? trim($raw) : '';
-            if ($field['type'] === 'password') {
-                if ($value !== '') {
-                    $data[$name] = $value;
-                }
-                continue;
-            }
-            if (!empty($field['upper'])) {
-                $value = Str::upper($value);
-            }
-            if ($value === '') {
-                if (!empty($field['required'])) {
-                    throw new FormError("Preencha o campo $label.");
-                }
-                $data[$name] = null;
-                continue;
-            }
-            switch ($field['type']) {
-                case 'int':
-                    if (!preg_match('/^-?\d+$/', $value)) {
-                        throw new FormError("$label deve ser um número inteiro.");
-                    }
-                    $data[$name] = (int) $value;
-                    break;
-                case 'decimal':
-                    $value = str_replace(',', '.', $value);
-                    if (!is_numeric($value)) {
-                        throw new FormError("$label deve ser um número.");
-                    }
-                    $data[$name] = $value;
-                    break;
-                case 'select':
-                    if (!array_key_exists($value, $field['options'])) {
-                        throw new FormError("Valor inválido para $label.");
-                    }
-                    $data[$name] = $value;
-                    break;
-                case 'fk':
-                    $unchanged = $row !== null && (string) ($row[$name] ?? '') === $value;
-                    if (!ctype_digit($value) || (!$unchanged && !Resources::inScope($field['ref'], (int) $value, $ctx, $field['strict'] ?? true))) {
-                        throw new FormError("Valor inválido para $label.");
-                    }
-                    $data[$name] = (int) $value;
-                    break;
-                case 'date':
-                    $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $value);
-                    if ($date === false || $date->format('Y-m-d') !== $value) {
-                        throw new FormError("$label deve ser uma data válida.");
-                    }
-                    $data[$name] = $value;
-                    break;
-                case 'datetime':
-                    $value = str_replace('T', ' ', $value);
-                    $date = \DateTimeImmutable::createFromFormat('!Y-m-d H:i', substr($value, 0, 16));
-                    if ($date === false) {
-                        throw new FormError("$label deve ser uma data/hora válida.");
-                    }
-                    $data[$name] = $date->format('Y-m-d H:i:00');
-                    break;
-                default:
-                    if (isset($field['max']) && Str::len($value) > $field['max']) {
-                        throw new FormError("$label deve ter no máximo {$field['max']} caracteres.");
-                    }
-                    $data[$name] = $value;
-            }
-        }
-        return $data;
-    }
-
-    /** @return string|null mensagem de erro */
-    private static function deleteRow(array $res, array $row, Ctx $ctx): ?string
-    {
-        try {
-            if (isset($res['before_delete'])) {
-                ($res['before_delete'])($row, $ctx);
-            }
-            Db::transaction(static function () use ($res, $row): void {
-                foreach ($res['cascade'] ?? [] as $cascade) {
-                    [$table, $column] = $cascade;
-                    $extra = isset($cascade[2]) ? ' AND ' . $cascade[2] : '';
-                    Db::run("DELETE FROM `$table` WHERE `$column` = ?$extra", [$row['id']]);
-                }
-                Db::run("DELETE FROM `{$res['table']}` WHERE id = ?", [$row['id']]);
-            });
-            return null;
-        } catch (FormError $error) {
-            return $error->getMessage();
-        } catch (PDOException $error) {
-            if (Db::isForeignKey($error)) {
-                return 'Não é possível excluir "' . Resources::title($res['key'], (int) $row['id']) . '": existem registros vinculados a ele.';
-            }
-            throw $error;
-        }
     }
 }

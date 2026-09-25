@@ -158,6 +158,7 @@ class _CodigoSalaFieldState extends State<_CodigoSalaField> {
               ),
               const SizedBox(width: 10),
               FilledButton(
+                style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
                 onPressed: () => widget.onEntrar(_codigo.text),
                 child: const Text('Entrar'),
               ),

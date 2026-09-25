@@ -343,6 +343,125 @@ $testes['CORS e rotas utilitárias'] = function (): void {
     T::eq(200, T::http('GET', '/static/admin.css')['status'], 'arquivo estático');
 };
 
+function staffAuth(string $email): array
+{
+    $r = T::http('POST', '/api/v1/staff/login', ['email' => $email, 'password' => 'password']);
+    return ['Authorization' => 'Bearer ' . ($r['json']['token'] ?? '')];
+}
+
+$testes['cadastros pelo app: pesquisador monta questionário e libera sala'] = function (): void {
+    Seed::demo();
+    $h = staffAuth('pesquisador@vise.local');
+    $escola = (int) Db::value("SELECT id FROM escolas WHERE inep = '00000001'");
+
+    $menu = T::http('GET', '/api/v1/staff/cadastros', null, $h);
+    T::eq(200, $menu['status'], 'menu');
+    $keys = array_column($menu['json']['data'] ?? [], 'key');
+    T::check(in_array('questionarios', $keys, true) && in_array('opcoes', $keys, true), 'instrumentos no menu');
+    T::check(!in_array('escolas', $keys, true) && !in_array('usuarios', $keys, true), 'sem escolas/usuários');
+    $metaQ = array_values(array_filter($menu['json']['data'], static fn ($m) => $m['key'] === 'questionarios'))[0] ?? [];
+    T::eq(true, $metaQ['pode_criar'] ?? null, 'pode criar questionário');
+    T::check(in_array('publicar', array_column($metaQ['acoes'] ?? [], 'nome'), true), 'ação publicar disponível');
+
+    $form = T::http('GET', '/api/v1/staff/cadastros/questionarios/formulario', null, $h);
+    T::eq(200, $form['status'], 'formulário');
+    $campos = array_column($form['json']['campos'] ?? [], null, 'name');
+    T::check(!isset($campos['pesquisador_id']), 'pesquisador não escolhe o dono');
+    T::eq((string) $escola, $campos['escola_id']['opcoes'][0]['valor'] ?? null, 'opções de escola no escopo');
+    T::eq('rascunho', $campos['status']['valor'] ?? null, 'valor padrão do status');
+
+    $q = T::http('POST', '/api/v1/staff/cadastros/questionarios', ['nome' => 'Ansiedade - App', 'escola_id' => $escola, 'status' => 'rascunho', 'versao' => 1, 'compartilhado_na_escola' => false], $h);
+    T::eq(201, $q['status'], 'cria questionário: ' . $q['body']);
+    $qid = (int) ($q['json']['id'] ?? 0);
+    T::eq((int) Db::value("SELECT id FROM users WHERE email = 'pesquisador@vise.local'"), (int) Db::value('SELECT pesquisador_id FROM questionarios WHERE id = ?', [$qid]), 'dono é o pesquisador');
+
+    $vazio = T::http('POST', '/api/v1/staff/cadastros/categorias', ['questionario_id' => $qid, 'nome' => ''], $h);
+    T::eq(422, $vazio['status'], 'validação');
+    T::eq('Preencha o campo Nome.', $vazio['json']['detail'] ?? null, 'mensagem de validação');
+
+    $prefill = T::http('GET', "/api/v1/staff/cadastros/categorias/formulario?questionario_id=$qid", null, $h);
+    T::eq((string) $qid, array_column($prefill['json']['campos'] ?? [], null, 'name')['questionario_id']['valor'] ?? null, 'formulário pré-preenchido');
+
+    $cat = T::http('POST', '/api/v1/staff/cadastros/categorias', ['questionario_id' => $qid, 'nome' => 'Preocupações', 'ordem' => 1, 'cor' => '#38BDF8'], $h);
+    T::eq(201, $cat['status'], 'cria categoria: ' . $cat['body']);
+    $cid = (int) $cat['json']['id'];
+    T::eq($escola, (int) Db::value('SELECT escola_id FROM categorias WHERE id = ?', [$cid]), 'escola derivada');
+    $perg = T::http('POST', '/api/v1/staff/cadastros/perguntas', ['categoria_id' => $cid, 'tipo' => 'multipla_escolha', 'texto' => 'Você se preocupa com facilidade?', 'ordem' => 1, 'obrigatoria' => true, 'peso' => '1'], $h);
+    T::eq(201, $perg['status'], 'cria pergunta: ' . $perg['body']);
+    $pid = (int) $perg['json']['id'];
+    foreach ([['Nunca', 0], ['Às vezes', 1], ['Sempre', 2]] as $i => [$descricao, $pontos]) {
+        $op = T::http('POST', '/api/v1/staff/cadastros/opcoes', ['pergunta_id' => $pid, 'descricao' => $descricao, 'pontuacao' => $pontos, 'ordem' => $i + 1], $h);
+        T::eq(201, $op['status'], "cria opção $descricao");
+    }
+    $regra = T::http('POST', '/api/v1/staff/cadastros/regras', ['categoria_id' => $cid, 'min_score' => '0', 'max_score' => '1', 'rotulo' => 'Baixo'], $h);
+    T::eq(201, $regra['status'], 'cria regra: ' . $regra['body']);
+    T::eq(422, T::http('POST', '/api/v1/staff/cadastros/regras', ['categoria_id' => $cid, 'min_score' => '5', 'max_score' => '1', 'rotulo' => 'X'], $h)['status'], 'regra inválida');
+
+    $edit = T::http('POST', "/api/v1/staff/cadastros/categorias/$cid", ['questionario_id' => $qid, 'nome' => 'Preocupações do dia a dia', 'ordem' => 1], $h);
+    T::eq(200, $edit['status'], 'edita categoria: ' . $edit['body']);
+    T::eq('Preocupações do dia a dia', Db::value('SELECT nome FROM categorias WHERE id = ?', [$cid]), 'nome editado');
+
+    $det = T::http('GET', "/api/v1/staff/cadastros/questionarios/$qid", null, $h);
+    T::eq(200, $det['status'], 'detalhe');
+    T::eq(true, $det['json']['pode_editar'] ?? null, 'pode editar');
+    $rel = array_column($det['json']['relacionados'] ?? [], null, 'key');
+    T::eq(1, $rel['categorias']['count'] ?? null, 'relacionados: categorias');
+    T::eq(true, $rel['categorias']['can_add'] ?? null, 'pode adicionar categoria');
+
+    $lista = T::http('GET', "/api/v1/staff/cadastros/perguntas?categoria_id=$cid", null, $h);
+    T::eq(1, $lista['json']['total'] ?? null, 'lista filtrada');
+    T::eq('Categoria', $lista['json']['filtros'][0]['label'] ?? null, 'filtro informado');
+
+    $pub = T::http('POST', '/api/v1/staff/cadastros/questionarios/acoes/publicar', ['ids' => [$qid]], $h);
+    T::eq(200, $pub['status'], 'publicar: ' . $pub['body']);
+    T::eq('publicado', Db::value('SELECT status FROM questionarios WHERE id = ?', [$qid]), 'publicado');
+
+    $sala = T::http('POST', '/api/v1/staff/salas', ['questionario_id' => $qid, 'escola_id' => $escola, 'alvo_tipo' => 'escola'], $h);
+    T::eq(201, $sala['status'], 'cria sala: ' . $sala['body']);
+    $login = T::http('POST', '/api/v1/login', ['cpf' => '07593256189', 'data_nascimento' => '2009-10-21']);
+    $alunoH = ['Authorization' => 'Bearer ' . $login['json']['token']];
+    $entrar = T::http('POST', '/api/v1/aplicacoes/entrar-com-codigo', ['codigo' => $sala['json']['codigo']], $alunoH);
+    T::eq(200, $entrar['status'], 'aluno entra na sala');
+    $perguntas = T::http('GET', "/api/v1/aplicacoes/{$entrar['json']['aplicacao_id']}/categorias/$cid/perguntas", null, $alunoH);
+    T::eq(3, count($perguntas['json']['data'][0]['opcoes'] ?? []), 'aluno vê a pergunta criada no app');
+
+    $opcao = (int) Db::value('SELECT id FROM opcoes_resposta WHERE pergunta_id = ? ORDER BY id DESC LIMIT 1', [$pid]);
+    T::eq(200, T::http('POST', "/api/v1/staff/cadastros/opcoes/$opcao/excluir", null, $h)['status'], 'exclui opção');
+
+    $now = Db::now();
+    $outra = Db::insert('escolas', ['nome' => 'Outra', 'municipio' => 'X', 'uf' => 'MT', 'ativo' => 1, 'created_at' => $now, 'updated_at' => $now]);
+    $alheio = Db::insert('questionarios', ['escola_id' => $outra, 'pesquisador_id' => (int) Db::value('SELECT id FROM users LIMIT 1'), 'nome' => 'Alheio', 'status' => 'publicado', 'versao' => 1, 'compartilhado_na_escola' => 1, 'created_at' => $now, 'updated_at' => $now]);
+    T::eq(404, T::http('GET', "/api/v1/staff/cadastros/questionarios/$alheio", null, $h)['status'], 'questionário de outra escola invisível');
+    T::eq(422, T::http('POST', '/api/v1/staff/cadastros/categorias', ['questionario_id' => $alheio, 'nome' => 'Invasão', 'ordem' => 1], $h)['status'], 'não cria categoria em questionário alheio');
+    T::eq(401, T::http('GET', '/api/v1/staff/cadastros', null, $alunoH)['status'], 'token de aluno recusado');
+};
+
+$testes['cadastros pelo app: admin da escola e professor'] = function (): void {
+    Seed::demo();
+    $escola = (int) Db::value("SELECT id FROM escolas WHERE inep = '00000001'");
+    $serie = (int) Db::value('SELECT id FROM series LIMIT 1');
+    $h = staffAuth('admin.escola@vise.local');
+    $turma = T::http('POST', '/api/v1/staff/cadastros/turmas', ['nome' => '8º Ano B', 'escola_id' => $escola, 'serie_id' => $serie, 'turno' => 'vespertino'], $h);
+    T::eq(201, $turma['status'], 'cria turma: ' . $turma['body']);
+    $aluno = T::http('POST', '/api/v1/staff/cadastros/alunos', [
+        'nome' => 'Carla App', 'cpf' => '529.982.247-25', 'data_nascimento' => '2011-03-04', 'escola_id' => $escola, 'turma_id' => $turma['json']['id'],
+    ], $h);
+    T::eq(201, $aluno['status'], 'cria aluno: ' . $aluno['body']);
+    T::eq(200, T::http('POST', '/api/v1/login', ['cpf' => '52998224725', 'data_nascimento' => '2011-03-04'])['status'], 'aluno criado pelo app consegue entrar');
+    $busca = T::http('GET', '/api/v1/staff/cadastros/alunos?q=529.982', null, $h);
+    T::eq(1, $busca['json']['total'] ?? null, 'busca por CPF');
+    T::eq('529.982.247-25', $busca['json']['data'][0]['colunas'][1] ?? null, 'CPF formatado na lista');
+    T::eq(403, T::http('POST', '/api/v1/staff/cadastros/questionarios', ['nome' => 'X', 'escola_id' => $escola, 'status' => 'rascunho', 'versao' => 1], $h)['status'], 'admin escola só lê questionários');
+
+    $p = staffAuth('professor@vise.local');
+    $menu = T::http('GET', '/api/v1/staff/cadastros', null, $p);
+    $keys = array_column($menu['json']['data'] ?? [], 'key');
+    T::check(in_array('resultados', $keys, true) && !in_array('questionarios', $keys, true), 'menu do professor');
+    T::eq(false, array_column($menu['json']['data'], null, 'key')['alunos']['pode_criar'] ?? null, 'professor só lê alunos');
+    T::eq(403, T::http('POST', '/api/v1/staff/cadastros/alunos', ['nome' => 'X'], $p)['status'], 'professor não cria aluno');
+    T::eq(403, T::http('GET', '/api/v1/staff/cadastros/usuarios', null, $p)['status'], 'professor sem usuários');
+};
+
 // ---------------------------------------------------------------- serviços
 
 $testes['publicar só rascunho'] = function (): void {

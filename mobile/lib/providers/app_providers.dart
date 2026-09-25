@@ -9,6 +9,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../core/network/api_client.dart';
 import '../data/local/app_database.dart';
 import '../data/repositories/auth_repository.dart';
+import '../data/repositories/cadastros_repository.dart';
 import '../data/repositories/quiz_repository.dart';
 import '../data/repositories/staff_repository.dart';
 import '../data/repositories/sync_repository.dart';
@@ -47,6 +48,15 @@ final staffRepositoryProvider = Provider<StaffRepository>(
   ),
 );
 
+final cadastrosRepositoryProvider = Provider<CadastrosRepository>(
+  (ref) => CadastrosRepository(ref.watch(apiClientProvider)),
+);
+
+/// Menu de cadastros do usuário da equipe logado (varia conforme o perfil).
+final cadastrosMenuProvider = FutureProvider.autoDispose<MenuCadastros>(
+  (ref) => ref.watch(cadastrosRepositoryProvider).menu(),
+);
+
 final quizRepositoryProvider = Provider<QuizRepository>(
   (ref) =>
       QuizRepository(ref.watch(apiClientProvider), ref.watch(databaseProvider)),
@@ -70,7 +80,6 @@ final appControllerProvider = ChangeNotifierProvider<AppController>((ref) {
     ref.watch(syncRepositoryProvider),
     ref.watch(databaseProvider),
   );
-  ref.onDispose(controller.dispose);
   return controller;
 });
 

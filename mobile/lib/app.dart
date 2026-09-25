@@ -8,7 +8,7 @@ import 'features/avatar/avatar_intro_screen.dart';
 import 'features/categories/categories_screen.dart';
 import 'features/common/responsive_shell.dart';
 import 'features/home/home_questionarios_screen.dart';
-import 'features/staff/staff_home_screen.dart';
+import 'features/staff/staff_shell.dart';
 import 'features/termo/termo_screen.dart';
 import 'providers/app_providers.dart';
 
@@ -40,8 +40,10 @@ class _ViseAppState extends ConsumerState<ViseApp> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      builder: (context, child) =>
-          ResponsiveShell(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) => ResponsiveShell(
+        maxWidth: controller.modoStaff ? 1440 : 560,
+        child: child ?? const SizedBox.shrink(),
+      ),
       home: _home(controller),
     );
   }
@@ -58,7 +60,7 @@ class _ViseAppState extends ConsumerState<ViseApp> {
       return const RoleGateScreen();
     }
     if (controller.modoStaff) {
-      return const StaffHomeScreen();
+      return const StaffShell();
     }
     if (!controller.termoAceito) {
       return TermoScreen(onAccepted: controller.registrarTermoAceito);

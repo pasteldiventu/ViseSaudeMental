@@ -106,7 +106,8 @@ final class Auth
         return $flash;
     }
 
-    private static function buildContext(int $uid): ?Ctx
+    /** Contexto (papéis, escolas, turmas) de um usuário; null se não tiver acesso à gestão. */
+    public static function buildContext(int $uid): ?Ctx
     {
         $user = Db::one('SELECT * FROM users WHERE id = ? AND deleted_at IS NULL', [$uid]);
         if ($user === null) {

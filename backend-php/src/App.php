@@ -9,6 +9,7 @@ use Vise\Admin\CrudController;
 use Vise\Api\AlunoExtrasController;
 use Vise\Api\AplicacoesController;
 use Vise\Api\AuthController;
+use Vise\Api\CadastrosController;
 use Vise\Api\RespostasController;
 use Vise\Api\StaffController;
 use Vise\Http\HttpError;
@@ -40,6 +41,16 @@ final class App
         $r->get("$api/staff/salas", [StaffController::class, 'salas']);
         $r->post("$api/staff/salas", [StaffController::class, 'criarSala']);
         $r->post("$api/staff/salas/$id/encerrar", [StaffController::class, 'encerrarSala']);
+
+        $cad = "$api/staff/cadastros/{resource:[a-z-]+}";
+        $r->get("$api/staff/cadastros", [CadastrosController::class, 'menu']);
+        $r->get($cad, [CadastrosController::class, 'index']);
+        $r->post($cad, [CadastrosController::class, 'create']);
+        $r->get("$cad/formulario", [CadastrosController::class, 'form']);
+        $r->post("$cad/acoes/{action:[a-z-]+}", [CadastrosController::class, 'action']);
+        $r->get("$cad/$id", [CadastrosController::class, 'show']);
+        $r->post("$cad/$id", [CadastrosController::class, 'update']);
+        $r->post("$cad/$id/excluir", [CadastrosController::class, 'delete']);
 
         $r->get("$api/aplicacoes", [AplicacoesController::class, 'listar']);
         $r->get("$api/salas/{codigo}", [AplicacoesController::class, 'salaPublica']);
