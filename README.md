@@ -155,13 +155,34 @@ Fluxo: **login → termo → avatar → categorias → perguntas** (SQLite / Ind
 
 ## CMS
 
-Painel em PHP em `/admin` (menu e permissões por perfil; cada usuário só enxerga as escolas em que tem vínculo ativo).
+Painel em PHP em `/admin` (menu e permissões por perfil; cada usuário só enxerga as escolas em que tem vínculo ativo — o professor, só as próprias turmas).
 
-Ações úteis:
+### Painel, relatórios e importação
+
+Também disponíveis no app, na área da equipe (menu **Painel**, **Relatórios** e **Importar planilha**), com as mesmas regras de acesso.
+
+- **Painel (`/admin`)** — indicadores do recorte escolhido (escola, turma, questionário, período): alunos, participação, concluídos, aplicações ativas, alunos em nível *Prioritário* e *Atenção*; gráfico de conclusões por dia/mês; níveis de atenção por categoria; participação por turma (menor primeiro, com atalho para o relatório da turma); aplicações em andamento e alertas recentes.
+- **Relatórios (`/admin/relatorios`)** — filtros por escola, turma, série, turno, sexo, questionário e período (7/30/90 dias, 12 meses, tudo ou datas). Mostra uma prévia e gera um **Excel (.xlsx)** com as abas escolhidas:
+  - *Resumo* (sempre): filtros aplicados, indicadores com explicação de como ler e classificação por categoria;
+  - *Por escola*, *Por turma* (participação baixa e casos prioritários destacados), *Classificação*, *Resultados por aluno*, *Respostas por pergunta*;
+  - opcionais: *Pendentes* (quem ainda não concluiu) e *Respostas detalhadas* (uma linha por resposta, até 50 mil).
+  - **Anonimizar alunos** troca nomes por códigos estáveis e remove CPF, matrícula e contatos — use ao compartilhar com pesquisa ou secretaria.
+- **Importar planilha (`/admin/importar`)** — escolas (admin geral), turmas, alunos e equipe, em `.xlsx` ou `.csv` (até 10.000 linhas). Cada tipo tem uma **planilha modelo** com instruções e a lista das escolas/turmas do usuário. Botão **Simular** valida tudo sem gravar; a importação cria ou atualiza (escola por INEP, turma por escola+nome, aluno por escola+CPF, equipe por e-mail) e mostra o resultado linha a linha. Os cabeçalhos são reconhecidos com variações (ex.: "Data de nascimento", "Nascimento"). Exemplo de CSV de alunos: [`docs/alunos_exemplo.csv`](docs/alunos_exemplo.csv).
+- **Exportar listas** — toda listagem do CMS tem o botão *Exportar Excel*, respeitando a busca e os filtros da tela.
+
+Os níveis *Adequado / Atenção / Prioritário* vêm do campo **Nível de atenção** das *Regras de classificação* (baixo / moderado / alto). Regras sem nível aparecem como "Sem nível" — vale revisá-las com a equipe técnica para os indicadores ficarem completos.
+
+Recomendações de uso:
+- Compartilhe relatórios nominais só com quem acompanha os alunos (LGPD); para pesquisa e gestão, prefira a versão anonimizada.
+- Sempre rode **Simular** antes de importar e mantenha a planilha de origem como registro.
+- Defina `APP_TIMEZONE` no `.env` (padrão `America/Cuiaba`): o banco grava em UTC e o painel/relatórios exibem datas e agrupam dias nesse fuso.
+- Para ver o painel com dados fictícios: `php bin/install.php --seed --seed-respostas=80` (cria turmas, alunos e respostas simuladas — só em ambiente de demonstração).
+
+### Outras ações
+
 - **Questionários:** selecionar itens → *Publicar* ou *Nova versão*
 - **Aplicações:** o admin da escola **cria/libera** a aplicação (escola, turma ou aluno)
 - **Aplicações:** *Encerrar* e *Limpar respostas (demo)* — esta última só para admin geral (apaga no servidor)
-- **Importar alunos:** menu *Importar alunos* — CSV com coluna `escola` (nome ou INEP). Exemplo em [`docs/alunos_exemplo.csv`](docs/alunos_exemplo.csv)
 - **Professor × turma:** liga o professor às turmas que ele acompanha
 
 ## OpenAPI

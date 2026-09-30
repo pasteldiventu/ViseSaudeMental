@@ -6,10 +6,12 @@ namespace Vise;
 
 use Vise\Admin\AdminController;
 use Vise\Admin\CrudController;
+use Vise\Admin\PainelController;
 use Vise\Api\AlunoExtrasController;
 use Vise\Api\AplicacoesController;
 use Vise\Api\AuthController;
 use Vise\Api\CadastrosController;
+use Vise\Api\PainelApiController;
 use Vise\Api\RespostasController;
 use Vise\Api\StaffController;
 use Vise\Http\HttpError;
@@ -52,6 +54,13 @@ final class App
         $r->post("$cad/$id", [CadastrosController::class, 'update']);
         $r->post("$cad/$id/excluir", [CadastrosController::class, 'delete']);
 
+        $r->get("$api/staff/painel", [PainelApiController::class, 'painel']);
+        $r->get("$api/staff/relatorios/opcoes", [PainelApiController::class, 'opcoes']);
+        $r->get("$api/staff/relatorios/exportar", [PainelApiController::class, 'exportar']);
+        $r->get("$api/staff/importacao", [PainelApiController::class, 'tipos']);
+        $r->get("$api/staff/importacao/{tipo:[a-z]+}/modelo", [PainelApiController::class, 'modelo']);
+        $r->post("$api/staff/importacao/{tipo:[a-z]+}", [PainelApiController::class, 'importar']);
+
         $r->get("$api/aplicacoes", [AplicacoesController::class, 'listar']);
         $r->get("$api/salas/{codigo}", [AplicacoesController::class, 'salaPublica']);
         $r->post("$api/aplicacoes/entrar-com-codigo", [AplicacoesController::class, 'entrarComCodigo']);
@@ -67,14 +76,20 @@ final class App
         $r->get('/install', [InstallController::class, 'form']);
         $r->post('/install', [InstallController::class, 'run']);
 
-        $r->get('/admin', [AdminController::class, 'dashboard']);
+        $r->get('/admin', [PainelController::class, 'dashboard']);
         $r->get('/admin/login', [AdminController::class, 'loginForm']);
         $r->post('/admin/login', [AdminController::class, 'login']);
         $r->get('/admin/logout', [AdminController::class, 'logout']);
-        $r->get('/admin/importar-alunos', [AdminController::class, 'importForm']);
-        $r->post('/admin/importar-alunos', [AdminController::class, 'import']);
+        $r->get('/admin/relatorios', [PainelController::class, 'relatorios']);
+        $r->get('/admin/relatorios/exportar', [PainelController::class, 'exportar']);
+        $r->get('/admin/importar', [PainelController::class, 'importarForm']);
+        $r->post('/admin/importar', [PainelController::class, 'importar']);
+        $r->get('/admin/importar/modelo/{tipo:[a-z]+}', [PainelController::class, 'modelo']);
+        $r->get('/admin/importar-alunos', [PainelController::class, 'importarAlunosForm']);
+        $r->post('/admin/importar-alunos', [PainelController::class, 'importarAlunos']);
         $res = '{resource:[a-z-]+}';
         $r->get("/admin/$res", [CrudController::class, 'index']);
+        $r->get("/admin/$res/exportar", [CrudController::class, 'export']);
         $r->get("/admin/$res/create", [CrudController::class, 'createForm']);
         $r->post("/admin/$res/create", [CrudController::class, 'create']);
         $r->post("/admin/$res/action", [CrudController::class, 'action']);

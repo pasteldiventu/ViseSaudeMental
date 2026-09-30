@@ -7,6 +7,7 @@ namespace Vise\Install;
 use Vise\Db;
 use Vise\Security\Password;
 use Vise\Services\CodigoSala;
+use Vise\Services\ResultadoService;
 
 /**
  * Dados de demonstração (idempotente). Não altera senhas de usuários que já existem.
@@ -78,6 +79,11 @@ final class Seed
                 'categoria_id' => $categoria,
                 'texto' => 'Conte algo que ajudou você a se sentir bem.',
             ], ['escola_id' => $escola, 'tipo' => 'texto', 'ordem' => 2, 'obrigatoria' => 0, 'peso' => '1.00']);
+            self::regras($escola, $categoria, [
+                [0, 0, 'Sinais de sofrimento', 'alto'],
+                [1, 1, 'Oscilando', 'moderado'],
+                [2, 2, 'Tranquilo', 'baixo'],
+            ]);
             self::aplicacao($questionario, $escola);
 
             $questionarioB = self::firstOrCreate('questionarios', ['escola_id' => $escola, 'nome' => 'Convívio escolar - Demo'], [
@@ -103,8 +109,131 @@ final class Seed
                     'escola_id' => $escola, 'pontuacao' => $pontos, 'ordem' => $i + 1, 'emoji' => $emoji,
                 ]);
             }
+            self::regras($escola, $categoriaB, [
+                [0, 0, 'Pouco acolhimento', 'alto'],
+                [1, 1, 'Acolhimento parcial', 'moderado'],
+                [2, 2, 'Bem acolhido(a)', 'baixo'],
+            ]);
             self::aplicacao($questionarioB, $escola);
         });
+    }
+
+    /**
+     * Turmas, alunos e respostas fictícias na escola demo, para visualizar painel e relatórios.
+     * Idempotente: alunos simulados têm matrícula "SIM###" e não são recriados.
+     */
+    public static function respostasDemo(int $quantidade = 80): int
+    {
+        self::demo();
+        mt_srand(20260930);
+        return Db::transaction(static function () use ($quantidade): int {
+            $escola = (int) Db::value("SELECT id FROM escolas WHERE inep = '00000001'");
+            $turmas = [];
+            foreach ([['9º Ano', '9º Ano A', 'matutino'], ['9º Ano', '9º Ano B', 'vespertino'], ['8º Ano', '8º Ano A', 'matutino'], ['8º Ano', '8º Ano B', 'vespertino']] as [$serie, $nome, $turno]) {
+                $serieId = self::firstOrCreate('series', ['descricao' => $serie], []);
+                $turmas[] = self::firstOrCreate('turmas', ['escola_id' => $escola, 'nome' => $nome], ['serie_id' => $serieId, 'turno' => $turno]);
+            }
+            $nomes = ['Ana', 'Bruno', 'Carla', 'Diego', 'Eduarda', 'Felipe', 'Gabriela', 'Henrique', 'Isabela', 'João', 'Larissa', 'Mateus', 'Natália', 'Otávio', 'Paula', 'Rafael', 'Sofia', 'Thiago', 'Valentina', 'Yuri'];
+            $sobrenomes = ['Silva', 'Souza', 'Oliveira', 'Santos', 'Lima', 'Pereira', 'Costa', 'Almeida', 'Ribeiro', 'Carvalho'];
+            $aplicacoes = Db::all(
+                "SELECT a.id, a.questionario_id FROM aplicacoes_questionario a WHERE a.escola_id = ? AND a.alvo_tipo = 'escola' ORDER BY a.id",
+                [$escola]
+            );
+            $perguntas = [];
+            foreach ($aplicacoes as $aplicacao) {
+                $perguntas[(int) $aplicacao['id']] = Db::all(
+                    'SELECT p.id, p.tipo FROM perguntas p JOIN categorias c ON c.id = p.categoria_id WHERE c.questionario_id = ? ORDER BY p.id',
+                    [$aplicacao['questionario_id']]
+                );
+            }
+
+            $criados = 0;
+            for ($i = 1; $i <= $quantidade; $i++) {
+                $matricula = sprintf('SIM%03d', $i);
+                if (Db::value('SELECT id FROM alunos WHERE matricula = ? AND escola_id = ?', [$matricula, $escola]) !== null) {
+                    continue;
+                }
+                $turma = $turmas[$i % count($turmas)];
+                $now = Db::now();
+                $aluno = Db::insert('alunos', [
+                    'nome' => $nomes[mt_rand(0, count($nomes) - 1)] . ' ' . $sobrenomes[mt_rand(0, count($sobrenomes) - 1)] . ' ' . $sobrenomes[mt_rand(0, count($sobrenomes) - 1)],
+                    'sexo' => mt_rand(0, 1) ? 'feminino' : 'masculino',
+                    'data_nascimento' => sprintf('%d-%02d-%02d', mt_rand(2010, 2012), mt_rand(1, 12), mt_rand(1, 28)),
+                    'cpf' => self::cpfFicticio(),
+                    'matricula' => $matricula,
+                    'turma_id' => $turma,
+                    'escola_id' => $escola,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+                $criados++;
+                foreach ($aplicacoes as $aplicacao) {
+                    $sorte = mt_rand(1, 100);
+                    if ($sorte > 78) {
+                        continue;
+                    }
+                    $quando = gmdate('Y-m-d H:i:s', time() - mt_rand(0, 29) * 86400 - mt_rand(0, 36000));
+                    $incompleto = $sorte > 72;
+                    foreach ($perguntas[(int) $aplicacao['id']] as $n => $pergunta) {
+                        if ($incompleto && $n > 0) {
+                            break;
+                        }
+                        $opcao = null;
+                        $texto = null;
+                        if ($pergunta['tipo'] === 'texto') {
+                            if (mt_rand(0, 2) > 0) {
+                                continue;
+                            }
+                            $texto = ['Conversar com amigos', 'Jogar bola', 'Ouvir música', 'Ficar com a família', 'Desenhar'][mt_rand(0, 4)];
+                        } else {
+                            $peso = mt_rand(1, 100);
+                            $ordem = $peso <= 18 ? 1 : ($peso <= 50 ? 2 : 3);
+                            $opcao = (int) Db::value('SELECT id FROM opcoes_resposta WHERE pergunta_id = ? AND ordem = ?', [$pergunta['id'], $ordem]);
+                        }
+                        Db::insert('respostas', [
+                            'aplicacao_id' => $aplicacao['id'], 'aluno_id' => $aluno, 'pergunta_id' => $pergunta['id'],
+                            'opcao_id' => $opcao ?: null, 'texto' => $texto, 'responded_at' => $quando,
+                            'dispositivo' => 'demo', 'created_at' => $quando, 'updated_at' => $quando,
+                        ]);
+                    }
+                    if (!$incompleto) {
+                        ResultadoService::calcular((int) $aplicacao['id'], $aluno);
+                        Db::run('UPDATE resultados SET created_at = ?, updated_at = ? WHERE aplicacao_id = ? AND aluno_id = ?', [$quando, $quando, $aplicacao['id'], $aluno]);
+                    }
+                }
+            }
+            return $criados;
+        });
+    }
+
+    /** @param list<array{0: int, 1: int, 2: string, 3: string}> $faixas */
+    private static function regras(int $escola, int $categoria, array $faixas): void
+    {
+        foreach ($faixas as [$min, $max, $rotulo, $nivel]) {
+            self::firstOrCreate('regras_classificacao', ['categoria_id' => $categoria, 'rotulo' => $rotulo], [
+                'escola_id' => $escola, 'min_score' => $min, 'max_score' => $max, 'nivel' => $nivel,
+            ]);
+        }
+    }
+
+    private static function cpfFicticio(): string
+    {
+        do {
+            $digitos = [];
+            for ($i = 0; $i < 9; $i++) {
+                $digitos[] = mt_rand(0, 9);
+            }
+            foreach ([10, 11] as $peso) {
+                $soma = 0;
+                foreach ($digitos as $j => $d) {
+                    $soma += $d * ($peso - $j);
+                }
+                $resto = ($soma * 10) % 11;
+                $digitos[] = $resto === 10 ? 0 : $resto;
+            }
+            $cpf = implode('', $digitos);
+        } while (Db::value('SELECT id FROM alunos WHERE cpf = ?', [$cpf]) !== null);
+        return $cpf;
     }
 
     private static function user(string $email, string $name, bool $superuser = false): int

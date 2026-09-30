@@ -6,6 +6,7 @@ declare(strict_types=1);
  * Uso:
  *   php bin/install.php                         cria/atualiza as tabelas
  *   php bin/install.php --seed                  + dados de demonstração
+ *   php bin/install.php --seed-respostas=80     + turmas, alunos e respostas fictícias (painel/relatórios)
  *   php bin/install.php --admin=email --password=segredo   cria/atualiza admin geral
  *   php bin/install.php --wait=60               aguarda o MySQL subir (Docker)
  */
@@ -20,7 +21,7 @@ use Vise\Db;
 use Vise\Install\Installer;
 use Vise\Install\Seed;
 
-$options = getopt('', ['seed', 'admin:', 'password:', 'name:', 'wait:']);
+$options = getopt('', ['seed', 'seed-respostas::', 'admin:', 'password:', 'name:', 'wait:']);
 
 $wait = (int) ($options['wait'] ?? 0);
 for ($attempt = 1; ; $attempt++) {
@@ -47,4 +48,8 @@ if (isset($options['admin'])) {
 if (isset($options['seed'])) {
     Seed::demo();
     echo 'Dados de demonstração criados.' . PHP_EOL;
+}
+if (isset($options['seed-respostas'])) {
+    $quantidade = (int) ($options['seed-respostas'] ?: 80);
+    echo Seed::respostasDemo(max(1, $quantidade)) . ' aluno(s) simulado(s) com respostas.' . PHP_EOL;
 }

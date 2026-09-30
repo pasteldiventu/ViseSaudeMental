@@ -30,14 +30,14 @@ final class ResultadoService
         $classificacao = [];
         foreach ($totais as $categoria => $total) {
             $regra = Db::one(
-                'SELECT rotulo, descricao FROM regras_classificacao
+                'SELECT rotulo, descricao, nivel FROM regras_classificacao
                  WHERE categoria_id = ? AND min_score <= ? AND max_score >= ? AND deleted_at IS NULL
                  ORDER BY id LIMIT 1',
                 [(int) $categoria, $total, $total]
             );
             $classificacao[(string) $categoria] = $regra === null
                 ? null
-                : ['rotulo' => $regra['rotulo'], 'descricao' => $regra['descricao']];
+                : ['rotulo' => $regra['rotulo'], 'descricao' => $regra['descricao'], 'nivel' => $regra['nivel']];
         }
 
         $totaisJson = (string) json_encode((object) $totais, JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION);

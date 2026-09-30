@@ -204,6 +204,43 @@ class _StaffHomeScreenState extends ConsumerState<StaffHomeScreen> {
               ),
               const SizedBox(height: 22),
             ],
+            if (widget.onAbrirCadastro != null) ...[
+              Material(
+                color: AppColors.mintSoft,
+                borderRadius: BorderRadius.circular(AppRadii.md),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(AppRadii.md),
+                  onTap: () => widget.onAbrirCadastro!('painel'),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.insights_rounded, color: AppColors.mint, size: 30),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Painel de indicadores', style: GoogleFonts.figtree(fontWeight: FontWeight.w800, fontSize: 16)),
+                              Text(
+                                'Participação, níveis de atenção e alertas das suas turmas.',
+                                style: GoogleFonts.figtree(color: AppColors.muted, fontSize: 12.5),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Relatórios',
+                          onPressed: () => widget.onAbrirCadastro!('relatorios'),
+                          icon: const Icon(Icons.summarize_outlined, color: AppColors.mint),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 22),
+            ],
             if (atalhos.isNotEmpty && widget.onAbrirCadastro != null) ...[
               Text(
                 'GESTÃO',

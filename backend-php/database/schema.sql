@@ -223,6 +223,7 @@ CREATE TABLE IF NOT EXISTS regras_classificacao (
   max_score DECIMAL(10,2) NOT NULL,
   rotulo VARCHAR(255) NOT NULL,
   descricao TEXT NULL,
+  nivel VARCHAR(20) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   deleted_at DATETIME NULL,
@@ -298,6 +299,7 @@ CREATE TABLE IF NOT EXISTS resultados (
   UNIQUE KEY uq_resultados_aplicacao_aluno (aplicacao_id, aluno_id),
   KEY ix_resultados_aplicacao_id (aplicacao_id),
   KEY ix_resultados_aluno_id (aluno_id),
+  KEY ix_resultados_created_at (created_at),
   CONSTRAINT resultados_ibfk_1 FOREIGN KEY (aplicacao_id) REFERENCES aplicacoes_questionario (id),
   CONSTRAINT resultados_ibfk_2 FOREIGN KEY (aluno_id) REFERENCES alunos (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

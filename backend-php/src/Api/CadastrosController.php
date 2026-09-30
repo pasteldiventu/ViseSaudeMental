@@ -27,7 +27,7 @@ final class CadastrosController
         foreach (Resources::MENU as $grupo => $keys) {
             $itens = [];
             foreach ($keys as $key) {
-                if ($key === '@importar-alunos') {
+                if (str_starts_with($key, '@')) {
                     continue;
                 }
                 $res = Resources::get($key);

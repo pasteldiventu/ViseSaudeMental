@@ -8,6 +8,9 @@ import '../../providers/app_providers.dart';
 import '../common/brand_and_progress.dart';
 import 'cadastros/cadastro_icons.dart';
 import 'cadastros/cadastro_lista_screen.dart';
+import 'painel/importar_screen.dart';
+import 'painel/painel_screen.dart';
+import 'painel/relatorios_screen.dart';
 import 'staff_home_screen.dart';
 
 /// Área da equipe: salas + cadastros liberados para o perfil.
@@ -21,28 +24,53 @@ class StaffShell extends ConsumerStatefulWidget {
 
 class _StaffShellState extends ConsumerState<StaffShell> {
   static const _salas = 'salas';
+  static const _painel = 'painel';
+  static const _relatorios = 'relatorios';
+  static const _importar = 'importar';
+  static const _especiais = {_salas, _painel, _relatorios, _importar};
+
   String _secao = _salas;
+  Map<String, String> _filtrosRelatorio = const {};
+  int _versaoRelatorio = 0;
 
   void _abrir(String secao) => setState(() => _secao = secao);
+
+  void _gerarRelatorio(Map<String, String> filtros) => setState(() {
+    _filtrosRelatorio = filtros;
+    _versaoRelatorio++;
+    _secao = _relatorios;
+  });
 
   @override
   Widget build(BuildContext context) {
     final menu = ref.watch(cadastrosMenuProvider);
+    final podeImportar = ref.watch(tiposImportacaoProvider).valueOrNull?.isNotEmpty ?? false;
     final largo = MediaQuery.sizeOf(context).width >= 900;
     final meta = menu.value?.cadastros[_secao];
-    final secao = meta == null ? _salas : _secao;
+    final secao = meta != null || (_especiais.contains(_secao) && (_secao != _importar || podeImportar))
+        ? _secao
+        : _salas;
 
     final menuLateral = _MenuLateral(
       menu: menu,
       selecionado: secao,
+      podeImportar: podeImportar,
       onSelecionar: _abrir,
       onRecarregar: () => ref.invalidate(cadastrosMenuProvider),
     );
     final gaveta = largo ? null : Drawer(backgroundColor: AppColors.surface, child: menuLateral);
 
-    final conteudo = secao == _salas
-        ? StaffHomeScreen(drawer: gaveta, onAbrirCadastro: _abrir)
-        : CadastroListaScreen(key: ValueKey(secao), meta: meta!, drawer: gaveta);
+    final Widget conteudo = switch (secao) {
+      _salas => StaffHomeScreen(drawer: gaveta, onAbrirCadastro: _abrir),
+      _painel => PainelScreen(drawer: gaveta, onGerarRelatorio: _gerarRelatorio),
+      _relatorios => RelatoriosScreen(
+        key: ValueKey('relatorios-$_versaoRelatorio'),
+        drawer: gaveta,
+        filtrosIniciais: _filtrosRelatorio,
+      ),
+      _importar => ImportarScreen(drawer: gaveta),
+      _ => CadastroListaScreen(key: ValueKey(secao), meta: meta!, drawer: gaveta),
+    };
 
     if (!largo) return conteudo;
     return Row(
@@ -62,12 +90,14 @@ class _MenuLateral extends ConsumerWidget {
   const _MenuLateral({
     required this.menu,
     required this.selecionado,
+    required this.podeImportar,
     required this.onSelecionar,
     required this.onRecarregar,
   });
 
   final AsyncValue<MenuCadastros> menu;
   final String selecionado;
+  final bool podeImportar;
   final ValueChanged<String> onSelecionar;
   final VoidCallback onRecarregar;
 
@@ -123,6 +153,25 @@ class _MenuLateral extends ConsumerWidget {
           selecionado: selecionado == 'salas',
           onTap: () => selecionar('salas'),
         ),
+        _Item(
+          icone: Icons.insights_rounded,
+          label: 'Painel',
+          selecionado: selecionado == 'painel',
+          onTap: () => selecionar('painel'),
+        ),
+        _Item(
+          icone: Icons.summarize_outlined,
+          label: 'Relatórios',
+          selecionado: selecionado == 'relatorios',
+          onTap: () => selecionar('relatorios'),
+        ),
+        if (podeImportar)
+          _Item(
+            icone: Icons.upload_file_rounded,
+            label: 'Importar planilha',
+            selecionado: selecionado == 'importar',
+            onTap: () => selecionar('importar'),
+          ),
         ...menu.when(
           data: (dados) => [
             for (final grupo in dados.grupos) ...[

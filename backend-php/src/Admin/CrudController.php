@@ -9,6 +9,8 @@ use Vise\Http\Request;
 use Vise\Http\Response;
 use Vise\Http\Url;
 use Vise\Support\Str;
+use Vise\Support\Tempo;
+use Vise\Support\XlsxWriter;
 
 final class CrudController
 {
@@ -111,10 +113,55 @@ final class CrudController
         }
         $html .= '</div>';
 
-        $top = $writable
-            ? '<a class="btn btn-primary" href="' . View::e(Url::to("/admin/$key/create", $filters)) . '">+ Novo(a) ' . View::e(Str::lower($res['singular'])) . '</a>'
+        $top = '<a class="btn" href="' . View::e(Url::to("/admin/$key/exportar", array_filter($baseQuery, static fn ($v) => $v !== null && $v !== ''))) . '" title="Baixa a lista com a busca e os filtros atuais">Exportar Excel</a>';
+        $top .= $writable
+            ? ' <a class="btn btn-primary" href="' . View::e(Url::to("/admin/$key/create", $filters)) . '">+ Novo(a) ' . View::e(Str::lower($res['singular'])) . '</a>'
             : '';
         return View::page($ctx, $res['plural'], $html, $key, $top);
+    }
+
+    /**
+     * Lista completa (busca + filtros da tela) em Excel.
+     *
+     * @param array<string, string> $p
+     */
+    public static function export(Request $request, array $p): Response
+    {
+        $ctx = self::ctx($request);
+        $res = self::resource($p, $ctx);
+        $limite = 20000;
+        $found = Records::search($res, $ctx, array_merge($request->query, ['page' => '1']), $limite);
+        $columns = array_keys(array_filter($res['fields'], static fn (array $f) => empty($f['virtual']) && $f['type'] !== 'password'));
+        $titles = Records::fkTitles($res, $found['rows'], $columns);
+
+        $linhas = [array_merge([XlsxWriter::c('ID', 'header')], array_map(static fn ($c) => XlsxWriter::c($res['fields'][$c]['label'], 'header'), $columns))];
+        foreach ($found['rows'] as $row) {
+            $linha = [(int) $row['id']];
+            foreach ($columns as $column) {
+                $linha[] = self::exportCell($res['fields'][$column], $row[$column] ?? null, $titles[$column] ?? []);
+            }
+            $linhas[] = $linha;
+        }
+        if ($found['total'] > $limite) {
+            $linhas[] = [XlsxWriter::c("Exibindo $limite de {$found['total']} registros: refine a busca para exportar o restante.", 'muted')];
+        }
+        $xlsx = (new XlsxWriter($ctx->name))->aba($res['plural'], $linhas, ['congelar' => 1, 'filtro' => 1])->gerar();
+        return Response::download($xlsx, $res['key'] . '-' . Tempo::local(gmdate('Y-m-d H:i:s'), 'Ymd-Hi') . '.xlsx');
+    }
+
+    /** @param array<int, string> $titles */
+    private static function exportCell(array $field, mixed $value, array $titles): mixed
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        return match (true) {
+            $field['type'] === 'date' => XlsxWriter::c(substr((string) $value, 0, 10), 'date'),
+            $field['type'] === 'datetime' => XlsxWriter::c(Tempo::local((string) $value, 'Y-m-d H:i'), 'datetime'),
+            $field['type'] === 'int' && is_numeric($value) => (int) $value,
+            ($field['display'] ?? '') === 'cpf' => XlsxWriter::c(Str::cpf($value), 'text'),
+            default => Records::text($field, $value, $titles),
+        };
     }
 
     /** @param array<string, string> $p */

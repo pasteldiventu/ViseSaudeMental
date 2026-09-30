@@ -30,6 +30,19 @@ final class Response
         return new self($status, $text, ['Content-Type' => 'text/plain; charset=utf-8']);
     }
 
+    public static function download(string $conteudo, string $arquivo, string $tipo = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'): self
+    {
+        $ascii = (string) preg_replace('/[^A-Za-z0-9._-]+/', '-', $arquivo);
+        return new self(200, $conteudo, [
+            'Content-Type' => $tipo,
+            'Content-Disposition' => 'attachment; filename="' . $ascii . '"; filename*=UTF-8\'\'' . rawurlencode($arquivo),
+            'Content-Length' => (string) strlen($conteudo),
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+            'Access-Control-Expose-Headers' => 'Content-Disposition',
+        ]);
+    }
+
     public static function redirect(string $url): self
     {
         return new self(302, '', ['Location' => $url]);

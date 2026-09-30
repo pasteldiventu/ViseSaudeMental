@@ -10,6 +10,7 @@ import '../core/network/api_client.dart';
 import '../data/local/app_database.dart';
 import '../data/repositories/auth_repository.dart';
 import '../data/repositories/cadastros_repository.dart';
+import '../data/repositories/painel_repository.dart';
 import '../data/repositories/quiz_repository.dart';
 import '../data/repositories/staff_repository.dart';
 import '../data/repositories/sync_repository.dart';
@@ -55,6 +56,19 @@ final cadastrosRepositoryProvider = Provider<CadastrosRepository>(
 /// Menu de cadastros do usuário da equipe logado (varia conforme o perfil).
 final cadastrosMenuProvider = FutureProvider.autoDispose<MenuCadastros>(
   (ref) => ref.watch(cadastrosRepositoryProvider).menu(),
+);
+
+final painelRepositoryProvider = Provider<PainelRepository>(
+  (ref) => PainelRepository(ref.watch(apiClientProvider)),
+);
+
+final opcoesRelatorioProvider = FutureProvider.autoDispose<OpcoesRelatorio>(
+  (ref) => ref.watch(painelRepositoryProvider).opcoes(),
+);
+
+/// Tipos de planilha que o perfil logado pode importar (vazio = sem importação).
+final tiposImportacaoProvider = FutureProvider.autoDispose<List<TipoImportacao>>(
+  (ref) => ref.watch(painelRepositoryProvider).tiposImportacao(),
 );
 
 final quizRepositoryProvider = Provider<QuizRepository>(

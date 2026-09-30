@@ -201,7 +201,7 @@ class StaffRepository {
   Future<List<SalaResumo>> listarSalas({int? escolaId}) async {
     final response = await api.dio.get<Map<String, dynamic>>(
       '/staff/salas',
-      queryParameters: {if (escolaId != null) 'escola_id': escolaId},
+      queryParameters: {'escola_id': ?escolaId},
     );
     return ApiClient.listFrom(response.data)
         .map(SalaResumo.fromJson)
@@ -211,7 +211,7 @@ class StaffRepository {
   Future<List<QuestionarioStaff>> listarQuestionarios({int? escolaId}) async {
     final response = await api.dio.get<dynamic>(
       '/staff/questionarios',
-      queryParameters: {if (escolaId != null) 'escola_id': escolaId},
+      queryParameters: {'escola_id': ?escolaId},
     );
     final list = response.data;
     if (list is! Iterable) return const [];
@@ -224,7 +224,7 @@ class StaffRepository {
   Future<List<TurmaStaff>> listarTurmas({int? escolaId}) async {
     final response = await api.dio.get<dynamic>(
       '/staff/turmas',
-      queryParameters: {if (escolaId != null) 'escola_id': escolaId},
+      queryParameters: {'escola_id': ?escolaId},
     );
     final list = response.data;
     if (list is! Iterable) return const [];
@@ -246,7 +246,7 @@ class StaffRepository {
         'questionario_id': questionarioId,
         'escola_id': escolaId,
         'alvo_tipo': alvoTipo,
-        if (turmaId != null) 'turma_id': turmaId,
+        'turma_id': ?turmaId,
       },
     );
     return SalaResumo.fromJson(response.data ?? const {});

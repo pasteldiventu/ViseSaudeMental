@@ -27,10 +27,12 @@ final class Resources
     public const ALVO_TIPO = ['escola' => 'Toda a escola', 'turma' => 'Turma', 'aluno' => 'Aluno'];
     public const TIPOS_PERGUNTA = ['multipla_escolha' => 'Múltipla escolha', 'texto' => 'Texto livre'];
     public const TURNOS = ['matutino' => 'Matutino', 'vespertino' => 'Vespertino', 'noturno' => 'Noturno', 'integral' => 'Integral'];
+    public const NIVEIS = ['baixo' => 'Adequado (sem sinal de risco)', 'moderado' => 'Atenção (acompanhar)', 'alto' => 'Prioritário (intervir)'];
 
     public const MENU = [
+        'Relatórios e dados' => ['@relatorios', '@importar'],
         'Escolas e equipe' => ['escolas', 'usuarios', 'vinculos', 'professores-turmas'],
-        'Turmas e alunos' => ['series', 'turmas', 'alunos', '@importar-alunos'],
+        'Turmas e alunos' => ['series', 'turmas', 'alunos'],
         'Instrumentos' => ['questionarios', 'categorias', 'subcategorias', 'perguntas', 'opcoes', 'regras'],
         'Aplicação e dados' => ['aplicacoes', 'respostas', 'resultados', 'termos', 'avatares'],
     ];
@@ -476,7 +478,7 @@ final class Resources
                 'plural' => 'Regras de classificação',
                 'title' => "CONCAT(t.rotulo, ' (', t.min_score, '–', t.max_score, ')')",
                 'join' => '',
-                'list' => ['rotulo', 'categoria_id', 'questionario_id', 'min_score', 'max_score'],
+                'list' => ['rotulo', 'nivel', 'categoria_id', 'questionario_id', 'min_score', 'max_score'],
                 'search' => ['rotulo'],
                 'derive_escola' => [['categoria_id', 'categorias'], ['questionario_id', 'questionarios']],
                 'fields' => [
@@ -485,6 +487,10 @@ final class Resources
                     'min_score' => ['label' => 'Pontuação mín.', 'type' => 'decimal', 'required' => true],
                     'max_score' => ['label' => 'Pontuação máx.', 'type' => 'decimal', 'required' => true],
                     'rotulo' => ['label' => 'Rótulo', 'type' => 'text', 'required' => true, 'max' => 255],
+                    'nivel' => [
+                        'label' => 'Nível de atenção', 'type' => 'select', 'options' => self::NIVEIS,
+                        'help' => 'Usado no painel e nos relatórios para destacar quem precisa de acompanhamento.',
+                    ],
                     'descricao' => ['label' => 'Descrição', 'type' => 'textarea'],
                     'escola_id' => ['label' => 'Escola', 'type' => 'fk', 'ref' => 'escolas', 'form' => false],
                 ],

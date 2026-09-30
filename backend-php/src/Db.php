@@ -11,6 +11,7 @@ use PDOStatement;
 final class Db
 {
     private static ?PDO $pdo = null;
+    private static int $savepoints = 0;
 
     /** Tabelas com coluna updated_at (atualizada pela aplicação). */
     private const TIMESTAMPED = [
@@ -125,6 +126,20 @@ final class Db
     public static function transaction(callable $callback): mixed
     {
         $pdo = self::pdo();
+        if ($pdo->inTransaction()) {
+            $savepoint = 'sp_' . ++self::$savepoints;
+            $pdo->exec("SAVEPOINT $savepoint");
+            try {
+                $result = $callback();
+                $pdo->exec("RELEASE SAVEPOINT $savepoint");
+                return $result;
+            } catch (\Throwable $error) {
+                if ($pdo->inTransaction()) {
+                    $pdo->exec("ROLLBACK TO SAVEPOINT $savepoint");
+                }
+                throw $error;
+            }
+        }
         $pdo->beginTransaction();
         try {
             $result = $callback();

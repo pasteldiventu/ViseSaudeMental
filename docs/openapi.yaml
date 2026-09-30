@@ -1,8 +1,10 @@
 openapi: 3.0.3
 info:
-  title: Vise SMA API (Aluno) — FastAPI
-  version: 1.0.0
-  description: API do aplicativo do aluno. Pontuações e classificações nunca são expostas.
+  title: Vise SMA API
+  version: 1.1.0
+  description: >
+    API do aplicativo (aluno e equipe). Pontuações e classificações nunca são expostas ao aluno;
+    os endpoints /staff/* são da equipe e respeitam o escopo do perfil.
 servers:
   - url: http://localhost:8000/api/v1
 paths:
@@ -66,8 +68,146 @@ paths:
       responses:
         "200":
           description: "{ status: concluido }"
+
+  # ---- Equipe (token de POST /staff/login; também aceito no cabeçalho X-Auth-Token) ----
+  # Todos respeitam o escopo do perfil: escolas com vínculo ativo; professor só vê as próprias turmas.
+  /staff/painel:
+    get:
+      tags: [equipe]
+      security: [{ bearerAuth: [] }]
+      summary: Indicadores do painel (mesmos números do /admin)
+      parameters:
+        - $ref: "#/components/parameters/escola_id"
+        - $ref: "#/components/parameters/turma_id"
+        - $ref: "#/components/parameters/serie_id"
+        - $ref: "#/components/parameters/turno"
+        - $ref: "#/components/parameters/sexo"
+        - $ref: "#/components/parameters/questionario_id"
+        - $ref: "#/components/parameters/aplicacao_id"
+        - in: query
+          name: periodo
+          schema: { type: string, enum: ["7", "30", "90", "365", tudo, personalizado], default: "30" }
+        - $ref: "#/components/parameters/inicio"
+        - $ref: "#/components/parameters/fim"
+      responses:
+        "200":
+          description: >
+            `data`: filtros {query, descricao[{rotulo, valor}]}, resumo (alunos, participantes, participacao 0–1,
+            concluidos, em_andamento, aplicacoes_ativas, prioritarios, atencao…), evolucao {granularidade: dia|mes, pontos[{rotulo, valor}]},
+            classificacao[{categoria, questionario, avaliacoes, media, faixas[{rotulo, nivel: baixo|moderado|alto|null, qtd, pct}]}],
+            turmas (menor participação primeiro), aplicacoes (até 10) e alertas (até 10; datas em UTC).
+        "403": { description: Perfil sem acesso a resultados }
+  /staff/relatorios/opcoes:
+    get:
+      tags: [equipe]
+      security: [{ bearerAuth: [] }]
+      summary: Opções dos filtros e abas disponíveis para o usuário
+      responses:
+        "200":
+          description: >
+            `data`: escolas[{id, nome}], turmas[{id, nome, escola_id, escola, turno}], series[{id, nome}],
+            turnos[{valor, rotulo}], sexos[{valor, rotulo}], questionarios[{id, nome}], periodos[{valor, rotulo}],
+            abas[{chave, rotulo, descricao, padrao, obrigatoria}].
+  /staff/relatorios/exportar:
+    get:
+      tags: [equipe]
+      security: [{ bearerAuth: [] }]
+      summary: Relatório em Excel (.xlsx) com os filtros e abas escolhidos
+      parameters:
+        - $ref: "#/components/parameters/escola_id"
+        - $ref: "#/components/parameters/turma_id"
+        - $ref: "#/components/parameters/serie_id"
+        - $ref: "#/components/parameters/turno"
+        - $ref: "#/components/parameters/sexo"
+        - $ref: "#/components/parameters/questionario_id"
+        - $ref: "#/components/parameters/aplicacao_id"
+        - in: query
+          name: periodo
+          schema: { type: string, enum: ["7", "30", "90", "365", tudo, personalizado], default: tudo }
+        - $ref: "#/components/parameters/inicio"
+        - $ref: "#/components/parameters/fim"
+        - in: query
+          name: abas
+          description: "Separadas por vírgula: resumo (sempre incluída), escolas, turmas, classificacao, alunos, perguntas, pendentes, respostas. Vazio = padrão."
+          schema: { type: string, example: "resumo,turmas,alunos" }
+        - in: query
+          name: anonimizar
+          description: "1 = troca nomes por códigos e remove CPF, matrícula e contatos"
+          schema: { type: string, enum: ["0", "1"] }
+      responses:
+        "200":
+          description: Arquivo; o nome vem em Content-Disposition (filename e filename* UTF-8)
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+        "403": { description: Perfil sem acesso a resultados }
+  /staff/importacao:
+    get:
+      tags: [equipe]
+      security: [{ bearerAuth: [] }]
+      summary: Tipos de planilha que o perfil pode importar (lista vazia = nenhum)
+      responses:
+        "200":
+          description: >
+            `data`[{tipo: escolas|turmas|alunos|equipe, label, descricao, colunas[{chave, label, obrigatoria, ajuda, exemplo}]}]
+            e `limite_linhas`.
+  /staff/importacao/{tipo}/modelo:
+    get:
+      tags: [equipe]
+      security: [{ bearerAuth: [] }]
+      summary: Planilha modelo (.xlsx) com instruções e as escolas/turmas do usuário
+      parameters:
+        - $ref: "#/components/parameters/tipo_importacao"
+      responses:
+        "200":
+          description: Arquivo .xlsx
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+        "403": { description: Tipo não permitido para o perfil }
+        "404": { description: Tipo desconhecido }
+  /staff/importacao/{tipo}:
+    post:
+      tags: [equipe]
+      security: [{ bearerAuth: [] }]
+      summary: Importa uma planilha .xlsx ou .csv (cria ou atualiza)
+      parameters:
+        - $ref: "#/components/parameters/tipo_importacao"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [arquivo]
+              properties:
+                arquivo: { type: string, format: binary }
+                simular: { type: string, enum: ["0", "1"], description: "1 = valida tudo e não grava nada" }
+      responses:
+        "200":
+          description: >
+            `data`: {tipo, simulacao, formato, total, criados, atualizados, erros, colunas_ignoradas[],
+            linhas[{linha, status: criado|atualizado|erro, mensagem}] (erros primeiro, até 1000), linhas_truncadas}.
+        "403": { description: Tipo não permitido para o perfil }
+        "404": { description: Tipo desconhecido }
+        "422": { description: Arquivo ausente ou ilegível }
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
+  parameters:
+    escola_id: { in: query, name: escola_id, schema: { type: integer } }
+    turma_id: { in: query, name: turma_id, schema: { type: integer } }
+    serie_id: { in: query, name: serie_id, schema: { type: integer } }
+    turno: { in: query, name: turno, schema: { type: string, example: matutino } }
+    sexo: { in: query, name: sexo, schema: { type: string } }
+    questionario_id: { in: query, name: questionario_id, schema: { type: integer } }
+    aplicacao_id: { in: query, name: aplicacao_id, schema: { type: integer } }
+    inicio: { in: query, name: inicio, description: "Com periodo=personalizado (data local, APP_TIMEZONE)", schema: { type: string, format: date } }
+    fim: { in: query, name: fim, description: "Com periodo=personalizado (data local, APP_TIMEZONE)", schema: { type: string, format: date } }
+    tipo_importacao:
+      in: path
+      name: tipo
+      required: true
+      schema: { type: string, enum: [escolas, turmas, alunos, equipe] }

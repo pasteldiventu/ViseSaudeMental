@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 
 import '../../core/network/api_client.dart';
@@ -5,7 +7,14 @@ import '../../core/network/api_client.dart';
 /// Mensagem amigável a partir de um erro da API (`{"detail": "..."}`).
 String mensagemDeErro(Object error, [String padrao = 'Não foi possível concluir.']) {
   if (error is DioException) {
-    final data = error.response?.data;
+    var data = error.response?.data;
+    if (data is List<int>) {
+      try {
+        data = jsonDecode(utf8.decode(data));
+      } on FormatException {
+        data = null;
+      }
+    }
     if (data is Map && data['detail'] is String) return data['detail'] as String;
     if (error.response == null) return 'Sem conexão com o servidor.';
   }

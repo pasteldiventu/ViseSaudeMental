@@ -28,9 +28,15 @@ final class View
         foreach (Resources::MENU as $group => $keys) {
             $items = '';
             foreach ($keys as $key) {
-                if ($key === '@importar-alunos') {
-                    if ($ctx->canWrite('aluno')) {
-                        $items .= self::menuItem(Url::to('/admin/importar-alunos'), 'Importar alunos (CSV)', $active === 'importar-alunos');
+                if ($key === '@relatorios') {
+                    if ($ctx->canAccess('resultado')) {
+                        $items .= self::menuItem(Url::to('/admin/relatorios'), 'Relatórios (Excel)', $active === 'relatorios');
+                    }
+                    continue;
+                }
+                if ($key === '@importar') {
+                    if (\Vise\Services\ImportacaoService::tiposPermitidos($ctx) !== []) {
+                        $items .= self::menuItem(Url::to('/admin/importar'), 'Importar planilha', $active === 'importar');
                     }
                     continue;
                 }
@@ -101,7 +107,7 @@ final class View
         return '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">'
             . '<meta name="viewport" content="width=device-width, initial-scale=1">'
             . '<title>' . self::e($title) . ' · VISE-MT</title>'
-            . '<link rel="stylesheet" href="' . self::e(Url::to('/static/admin.css')) . '?v=1">'
+            . '<link rel="stylesheet" href="' . self::e(Url::to('/static/admin.css')) . '?v=2">'
             . '</head><body>' . $body . '</body></html>';
     }
 }

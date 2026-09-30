@@ -28,6 +28,14 @@ final class Installer
             Db::pdo()->exec('ALTER TABLE aplicacoes_questionario ADD COLUMN codigo_sala VARCHAR(12) NULL UNIQUE');
             $log[] = 'Coluna aplicacoes_questionario.codigo_sala criada.';
         }
+        if (!self::columnExists('regras_classificacao', 'nivel')) {
+            Db::pdo()->exec('ALTER TABLE regras_classificacao ADD COLUMN nivel VARCHAR(20) NULL AFTER descricao');
+            $log[] = 'Coluna regras_classificacao.nivel criada.';
+        }
+        if (!self::indexExists('resultados', 'ix_resultados_created_at')) {
+            Db::pdo()->exec('ALTER TABLE resultados ADD INDEX ix_resultados_created_at (created_at)');
+            $log[] = 'Índice resultados.created_at criado.';
+        }
         // O app envia a versão do termo como texto ("1.0"); o schema antigo usava INT.
         if (self::columnType('termos_aceite', 'versao') !== 'varchar') {
             Db::pdo()->exec('ALTER TABLE termos_aceite MODIFY versao VARCHAR(50) NOT NULL');
@@ -66,6 +74,14 @@ final class Installer
     private static function columnExists(string $table, string $column): bool
     {
         return self::columnType($table, $column) !== null;
+    }
+
+    private static function indexExists(string $table, string $index): bool
+    {
+        return Db::value(
+            'SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ? LIMIT 1',
+            [$table, $index]
+        ) !== null;
     }
 
     private static function columnType(string $table, string $column): ?string
