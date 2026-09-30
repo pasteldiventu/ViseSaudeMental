@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/repositories/cadastros_repository.dart';
 import '../../../providers/app_providers.dart';
+import '../../common/ui_kit.dart';
 import 'cadastro_detalhe_screen.dart';
 import 'cadastro_form_screen.dart';
 import 'cadastro_icons.dart';
@@ -24,7 +25,8 @@ class CadastroListaScreen extends ConsumerStatefulWidget {
   final Widget? drawer;
 
   @override
-  ConsumerState<CadastroListaScreen> createState() => _CadastroListaScreenState();
+  ConsumerState<CadastroListaScreen> createState() =>
+      _CadastroListaScreenState();
 }
 
 class _CadastroListaScreenState extends ConsumerState<CadastroListaScreen> {
@@ -85,7 +87,12 @@ class _CadastroListaScreenState extends ConsumerState<CadastroListaScreen> {
     try {
       final pagina = await ref
           .read(cadastrosRepositoryProvider)
-          .listar(widget.meta.key, busca: _busca.text, filtros: _filtros, page: _page + 1);
+          .listar(
+            widget.meta.key,
+            busca: _busca.text,
+            filtros: _filtros,
+            page: _page + 1,
+          );
       if (!mounted) return;
       setState(() {
         _registros = [..._registros, ...pagina.registros];
@@ -94,7 +101,9 @@ class _CadastroListaScreenState extends ConsumerState<CadastroListaScreen> {
       });
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(mensagemDeErro(error))));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(mensagemDeErro(error))));
       }
     } finally {
       if (mounted) setState(() => _carregandoMais = false);
@@ -108,7 +117,10 @@ class _CadastroListaScreenState extends ConsumerState<CadastroListaScreen> {
 
   Future<void> _abrir(int id) async {
     await Navigator.of(context).push<void>(
-      MaterialPageRoute(builder: (_) => CadastroDetalheScreen(cadastroKey: widget.meta.key, id: id)),
+      MaterialPageRoute(
+        builder: (_) =>
+            CadastroDetalheScreen(cadastroKey: widget.meta.key, id: id),
+      ),
     );
     await _carregar();
   }
@@ -116,7 +128,10 @@ class _CadastroListaScreenState extends ConsumerState<CadastroListaScreen> {
   Future<void> _novo() async {
     final id = await Navigator.of(context).push<int>(
       MaterialPageRoute(
-        builder: (_) => CadastroFormScreen(cadastroKey: widget.meta.key, preencher: _filtros),
+        builder: (_) => CadastroFormScreen(
+          cadastroKey: widget.meta.key,
+          preencher: _filtros,
+        ),
       ),
     );
     if (id == null || !mounted) return;
@@ -129,19 +144,20 @@ class _CadastroListaScreenState extends ConsumerState<CadastroListaScreen> {
     return Scaffold(
       drawer: widget.drawer,
       appBar: AppBar(
-        title: Text(meta.plural.toUpperCase()),
+        title: Text(meta.plural),
         actions: [
-          IconButton(
+          BotaoRedondo(
+            icone: Icons.refresh_rounded,
             tooltip: 'Atualizar',
             onPressed: _carregando ? null : _carregar,
-            icon: const Icon(Icons.refresh_rounded),
           ),
+          const SizedBox(width: 12),
         ],
       ),
       floatingActionButton: meta.podeCriar
           ? FloatingActionButton.extended(
               onPressed: _novo,
-              icon: const Icon(Icons.add),
+              icon: const Icon(Icons.add_rounded),
               label: Text('Novo(a) ${meta.singular.toLowerCase()}'),
             )
           : null,
@@ -157,8 +173,21 @@ class _CadastroListaScreenState extends ConsumerState<CadastroListaScreen> {
                 textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
                   hintText: 'Buscar por ${meta.buscaLabel}',
-                  prefixIcon: const Icon(Icons.search),
+                  prefixIcon: const Icon(Icons.search_rounded),
                   isDense: true,
+                  fillColor: AppColors.surface,
+                  border: const OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(99)),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: const OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(99)),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: const OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(99)),
+                    borderSide: BorderSide(color: AppColors.mint, width: 1.5),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -170,7 +199,10 @@ class _CadastroListaScreenState extends ConsumerState<CadastroListaScreen> {
                 children: [
                   for (final filtro in _filtrosAtivos)
                     InputChip(
-                      label: Text('${filtro.label}: ${filtro.titulo}', overflow: TextOverflow.ellipsis),
+                      label: Text(
+                        '${filtro.label}: ${filtro.titulo}',
+                        overflow: TextOverflow.ellipsis,
+                      ),
                       onDeleted: () {
                         _filtros = Map.of(_filtros)..remove(filtro.campo);
                         _carregar();
@@ -185,7 +217,10 @@ class _CadastroListaScreenState extends ConsumerState<CadastroListaScreen> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
                   '$_total registro(s)',
-                  style: GoogleFonts.figtree(color: AppColors.muted, fontSize: 13),
+                  style: GoogleFonts.figtree(
+                    color: AppColors.muted,
+                    fontSize: 13,
+                  ),
                 ),
               ),
             if (_carregando)
@@ -196,21 +231,32 @@ class _CadastroListaScreenState extends ConsumerState<CadastroListaScreen> {
             else if (_erro != null)
               Padding(
                 padding: const EdgeInsets.only(top: 32),
-                child: Text(_erro!, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFFFFB4B4))),
+                child: Text(
+                  _erro!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Color(0xFFFFB4B4)),
+                ),
               )
             else if (_registros.isEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 40),
                 child: Column(
                   children: [
-                    Icon(iconeDoCadastro(meta.key), size: 48, color: AppColors.locked),
+                    Icon(
+                      iconeDoCadastro(meta.key),
+                      size: 48,
+                      color: AppColors.locked,
+                    ),
                     const SizedBox(height: 12),
                     Text(
                       meta.podeCriar
                           ? 'Nada por aqui ainda. Toque em "Novo(a) ${meta.singular.toLowerCase()}".'
                           : 'Nenhum registro encontrado.',
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.figtree(color: AppColors.muted, height: 1.4),
+                      style: GoogleFonts.figtree(
+                        color: AppColors.muted,
+                        height: 1.4,
+                      ),
                     ),
                   ],
                 ),
@@ -219,14 +265,21 @@ class _CadastroListaScreenState extends ConsumerState<CadastroListaScreen> {
               for (final registro in _registros)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
-                  child: _RegistroCard(meta: meta, registro: registro, onTap: () => _abrir(registro.id)),
+                  child: _RegistroCard(
+                    meta: meta,
+                    registro: registro,
+                    onTap: () => _abrir(registro.id),
+                  ),
                 ),
               if (_page < _pages)
                 Center(
                   child: TextButton.icon(
                     onPressed: _carregandoMais ? null : _carregarMais,
                     icon: _carregandoMais
-                        ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        ? const SizedBox.square(
+                            dimension: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
                         : const Icon(Icons.expand_more),
                     label: const Text('Carregar mais'),
                   ),
@@ -240,7 +293,13 @@ class _CadastroListaScreenState extends ConsumerState<CadastroListaScreen> {
 }
 
 class _RegistroCard extends StatelessWidget {
-  const _RegistroCard({required this.meta, required this.registro, required this.onTap});
+  const _RegistroCard({
+    required this.meta,
+    required this.registro,
+    required this.onTap,
+  });
+
+  static const _pessoas = {'alunos', 'usuarios'};
 
   final CadastroMeta meta;
   final RegistroResumo registro;
@@ -249,23 +308,48 @@ class _RegistroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final detalhes = <String>[];
-    for (var i = 1; i < registro.colunas.length && i < meta.colunas.length; i++) {
+    for (
+      var i = 1;
+      i < registro.colunas.length && i < meta.colunas.length;
+      i++
+    ) {
       final valor = registro.colunas[i];
-      if (valor != '—' && valor.isNotEmpty) detalhes.add('${meta.colunas[i]}: $valor');
+      if (valor != '—' && valor.isNotEmpty) {
+        detalhes.add('${meta.colunas[i]}: $valor');
+      }
     }
-    final principal = registro.colunas.isNotEmpty && registro.colunas.first != '—'
+    final principal =
+        registro.colunas.isNotEmpty && registro.colunas.first != '—'
         ? registro.colunas.first
         : registro.titulo;
+    final cor = AppColors.pastelFor(principal.hashCode);
     return Material(
-      color: AppColors.surfaceRaised,
-      borderRadius: BorderRadius.circular(AppRadii.sm),
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(AppRadii.md),
       child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadii.sm),
+        borderRadius: BorderRadius.circular(AppRadii.md),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
+          padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
           child: Row(
             children: [
+              if (_pessoas.contains(meta.key))
+                AvatarIniciais(nome: principal, tamanho: 44, fundo: cor)
+              else
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: cor,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    iconeDoCadastro(meta.key),
+                    color: AppColors.ink,
+                    size: 22,
+                  ),
+                ),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -274,7 +358,10 @@ class _RegistroCard extends StatelessWidget {
                       principal,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.figtree(fontWeight: FontWeight.w800, fontSize: 15.5),
+                      style: GoogleFonts.figtree(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15.5,
+                      ),
                     ),
                     if (detalhes.isNotEmpty) ...[
                       const SizedBox(height: 6),
@@ -282,7 +369,11 @@ class _RegistroCard extends StatelessWidget {
                         detalhes.take(4).join('  ·  '),
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.figtree(color: AppColors.muted, fontSize: 13, height: 1.35),
+                        style: GoogleFonts.figtree(
+                          color: AppColors.muted,
+                          fontSize: 13,
+                          height: 1.35,
+                        ),
                       ),
                     ],
                   ],

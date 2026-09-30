@@ -66,7 +66,7 @@ class _AvatarIntroScreenState extends ConsumerState<AvatarIntroScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('BEM-VINDO')),
+      appBar: AppBar(title: const Text('Bem-vindo')),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),

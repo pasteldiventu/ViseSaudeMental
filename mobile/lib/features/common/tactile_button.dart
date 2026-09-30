@@ -61,7 +61,7 @@ class _TactileButtonState extends State<TactileButton> {
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: widget.depthColor,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(99),
                   ),
                 ),
               ),
@@ -73,7 +73,7 @@ class _TactileButtonState extends State<TactileButton> {
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: _active ? widget.color : AppColors.locked,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(99),
                   ),
                   child: DefaultTextStyle(
                     style: GoogleFonts.figtree(

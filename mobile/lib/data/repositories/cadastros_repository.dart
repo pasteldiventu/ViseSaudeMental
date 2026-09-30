@@ -5,7 +5,10 @@ import 'package:dio/dio.dart';
 import '../../core/network/api_client.dart';
 
 /// Mensagem amigável a partir de um erro da API (`{"detail": "..."}`).
-String mensagemDeErro(Object error, [String padrao = 'Não foi possível concluir.']) {
+String mensagemDeErro(
+  Object error, [
+  String padrao = 'Não foi possível concluir.',
+]) {
   if (error is DioException) {
     var data = error.response?.data;
     if (data is List<int>) {
@@ -15,7 +18,9 @@ String mensagemDeErro(Object error, [String padrao = 'Não foi possível conclui
         data = null;
       }
     }
-    if (data is Map && data['detail'] is String) return data['detail'] as String;
+    if (data is Map && data['detail'] is String) {
+      return data['detail'] as String;
+    }
     if (error.response == null) return 'Sem conexão com o servidor.';
   }
   return padrao;
@@ -84,10 +89,9 @@ class MenuCadastros {
           .map(
             (g) => (
               grupo: g['grupo'].toString(),
-              itens: _strings(g['itens'])
-                  .where(cadastros.containsKey)
-                  .map((k) => cadastros[k]!)
-                  .toList(),
+              itens: _strings(
+                g['itens'],
+              ).where(cadastros.containsKey).map((k) => cadastros[k]!).toList(),
             ),
           )
           .toList(),
@@ -100,7 +104,11 @@ class MenuCadastros {
 }
 
 class RegistroResumo {
-  RegistroResumo({required this.id, required this.titulo, required this.colunas});
+  RegistroResumo({
+    required this.id,
+    required this.titulo,
+    required this.colunas,
+  });
 
   factory RegistroResumo.fromJson(Map<String, dynamic> json) => RegistroResumo(
     id: _int(json['id']),
@@ -114,7 +122,12 @@ class RegistroResumo {
 }
 
 class FiltroAtivo {
-  FiltroAtivo({required this.campo, required this.label, required this.valor, required this.titulo});
+  FiltroAtivo({
+    required this.campo,
+    required this.label,
+    required this.valor,
+    required this.titulo,
+  });
 
   factory FiltroAtivo.fromJson(Map<String, dynamic> json) => FiltroAtivo(
     campo: json['campo'].toString(),
@@ -138,13 +151,14 @@ class PaginaRegistros {
     required this.filtros,
   });
 
-  factory PaginaRegistros.fromJson(Map<String, dynamic> json) => PaginaRegistros(
-    registros: _maps(json['data']).map(RegistroResumo.fromJson).toList(),
-    total: _int(json['total']),
-    page: _int(json['page'], 1),
-    pages: _int(json['pages'], 1),
-    filtros: _maps(json['filtros']).map(FiltroAtivo.fromJson).toList(),
-  );
+  factory PaginaRegistros.fromJson(Map<String, dynamic> json) =>
+      PaginaRegistros(
+        registros: _maps(json['data']).map(RegistroResumo.fromJson).toList(),
+        total: _int(json['total']),
+        page: _int(json['page'], 1),
+        pages: _int(json['pages'], 1),
+        filtros: _maps(json['filtros']).map(FiltroAtivo.fromJson).toList(),
+      );
 
   final List<RegistroResumo> registros;
   final int total;
@@ -225,16 +239,19 @@ class RegistroDetalhe {
     required this.acoes,
   });
 
-  factory RegistroDetalhe.fromJson(Map<String, dynamic> json) => RegistroDetalhe(
-    id: _int(json['id']),
-    key: json['key'].toString(),
-    singular: json['singular']?.toString() ?? '',
-    titulo: json['titulo']?.toString() ?? '',
-    podeEditar: json['pode_editar'] == true,
-    campos: _maps(json['campos']).map(CampoDetalhe.fromJson).toList(),
-    relacionados: _maps(json['relacionados']).map(Relacionado.fromJson).toList(),
-    acoes: _maps(json['acoes']).map(AcaoMeta.fromJson).toList(),
-  );
+  factory RegistroDetalhe.fromJson(Map<String, dynamic> json) =>
+      RegistroDetalhe(
+        id: _int(json['id']),
+        key: json['key'].toString(),
+        singular: json['singular']?.toString() ?? '',
+        titulo: json['titulo']?.toString() ?? '',
+        podeEditar: json['pode_editar'] == true,
+        campos: _maps(json['campos']).map(CampoDetalhe.fromJson).toList(),
+        relacionados: _maps(
+          json['relacionados'],
+        ).map(Relacionado.fromJson).toList(),
+        acoes: _maps(json['acoes']).map(AcaoMeta.fromJson).toList(),
+      );
 
   final int id;
   final String key;
@@ -276,7 +293,12 @@ class CampoFormulario {
       ajuda: json['ajuda']?.toString(),
       opcoes: opcoes is Iterable
           ? _maps(opcoes)
-                .map((o) => OpcaoCampo(valor: o['valor'].toString(), label: o['label'].toString()))
+                .map(
+                  (o) => OpcaoCampo(
+                    valor: o['valor'].toString(),
+                    label: o['label'].toString(),
+                  ),
+                )
                 .toList()
           : null,
       valor: json['valor'],
@@ -363,11 +385,16 @@ class CadastrosRepository {
       data: dados,
     );
     final data = response.data ?? const {};
-    return (id: _int(data['id']), mensagem: data['mensagem']?.toString() ?? 'Salvo.');
+    return (
+      id: _int(data['id']),
+      mensagem: data['mensagem']?.toString() ?? 'Salvo.',
+    );
   }
 
   Future<String> excluir(String key, int id) async {
-    final response = await api.dio.post<Map<String, dynamic>>('$_base/$key/$id/excluir');
+    final response = await api.dio.post<Map<String, dynamic>>(
+      '$_base/$key/$id/excluir',
+    );
     return response.data?['mensagem']?.toString() ?? 'Excluído.';
   }
 
@@ -383,8 +410,9 @@ class CadastrosRepository {
 int _int(dynamic value, [int fallback = 0]) =>
     value is int ? value : int.tryParse(value?.toString() ?? '') ?? fallback;
 
-List<String> _strings(dynamic value) =>
-    value is Iterable ? value.map((e) => e?.toString() ?? '').toList() : const [];
+List<String> _strings(dynamic value) => value is Iterable
+    ? value.map((e) => e?.toString() ?? '').toList()
+    : const [];
 
 List<Map<String, dynamic>> _maps(dynamic value) => value is Iterable
     ? value.whereType<Map>().map(Map<String, dynamic>.from).toList()

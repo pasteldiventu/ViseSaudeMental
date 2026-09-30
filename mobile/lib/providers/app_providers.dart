@@ -67,9 +67,10 @@ final opcoesRelatorioProvider = FutureProvider.autoDispose<OpcoesRelatorio>(
 );
 
 /// Tipos de planilha que o perfil logado pode importar (vazio = sem importação).
-final tiposImportacaoProvider = FutureProvider.autoDispose<List<TipoImportacao>>(
-  (ref) => ref.watch(painelRepositoryProvider).tiposImportacao(),
-);
+final tiposImportacaoProvider =
+    FutureProvider.autoDispose<List<TipoImportacao>>(
+      (ref) => ref.watch(painelRepositoryProvider).tiposImportacao(),
+    );
 
 final quizRepositoryProvider = Provider<QuizRepository>(
   (ref) =>
@@ -220,8 +221,8 @@ class AppController extends ChangeNotifier {
       erro = status == 422
           ? 'E-mail ou senha inválidos.'
           : status == 403
-              ? 'Usuário sem perfil de equipe ativo.'
-              : 'Não foi possível entrar. Verifique a conexão.';
+          ? 'Usuário sem perfil de equipe ativo.'
+          : 'Não foi possível entrar. Verifique a conexão.';
       return false;
     } catch (error, stack) {
       debugPrint('Falha login staff: $error\n$stack');

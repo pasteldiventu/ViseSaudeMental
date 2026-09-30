@@ -203,9 +203,7 @@ class StaffRepository {
       '/staff/salas',
       queryParameters: {'escola_id': ?escolaId},
     );
-    return ApiClient.listFrom(response.data)
-        .map(SalaResumo.fromJson)
-        .toList();
+    return ApiClient.listFrom(response.data).map(SalaResumo.fromJson).toList();
   }
 
   Future<List<QuestionarioStaff>> listarQuestionarios({int? escolaId}) async {

@@ -44,10 +44,14 @@ class _StaffShellState extends ConsumerState<StaffShell> {
   @override
   Widget build(BuildContext context) {
     final menu = ref.watch(cadastrosMenuProvider);
-    final podeImportar = ref.watch(tiposImportacaoProvider).valueOrNull?.isNotEmpty ?? false;
+    final podeImportar =
+        ref.watch(tiposImportacaoProvider).valueOrNull?.isNotEmpty ?? false;
     final largo = MediaQuery.sizeOf(context).width >= 900;
     final meta = menu.value?.cadastros[_secao];
-    final secao = meta != null || (_especiais.contains(_secao) && (_secao != _importar || podeImportar))
+    final secao =
+        meta != null ||
+            (_especiais.contains(_secao) &&
+                (_secao != _importar || podeImportar))
         ? _secao
         : _salas;
 
@@ -58,18 +62,27 @@ class _StaffShellState extends ConsumerState<StaffShell> {
       onSelecionar: _abrir,
       onRecarregar: () => ref.invalidate(cadastrosMenuProvider),
     );
-    final gaveta = largo ? null : Drawer(backgroundColor: AppColors.surface, child: menuLateral);
+    final gaveta = largo
+        ? null
+        : Drawer(backgroundColor: AppColors.surface, child: menuLateral);
 
     final Widget conteudo = switch (secao) {
       _salas => StaffHomeScreen(drawer: gaveta, onAbrirCadastro: _abrir),
-      _painel => PainelScreen(drawer: gaveta, onGerarRelatorio: _gerarRelatorio),
+      _painel => PainelScreen(
+        drawer: gaveta,
+        onGerarRelatorio: _gerarRelatorio,
+      ),
       _relatorios => RelatoriosScreen(
         key: ValueKey('relatorios-$_versaoRelatorio'),
         drawer: gaveta,
         filtrosIniciais: _filtrosRelatorio,
       ),
       _importar => ImportarScreen(drawer: gaveta),
-      _ => CadastroListaScreen(key: ValueKey(secao), meta: meta!, drawer: gaveta),
+      _ => CadastroListaScreen(
+        key: ValueKey(secao),
+        meta: meta!,
+        drawer: gaveta,
+      ),
     };
 
     if (!largo) return conteudo;
@@ -77,7 +90,10 @@ class _StaffShellState extends ConsumerState<StaffShell> {
       children: [
         SizedBox(
           width: 290,
-          child: Material(color: AppColors.surface, child: SafeArea(child: menuLateral)),
+          child: Material(
+            color: AppColors.surface,
+            child: SafeArea(child: menuLateral),
+          ),
         ),
         const VerticalDivider(width: 1, color: AppColors.border),
         Expanded(child: conteudo),
@@ -126,7 +142,10 @@ class _MenuLateral extends ConsumerWidget {
                       user?.name ?? '',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.figtree(fontWeight: FontWeight.w800, fontSize: 16),
+                      style: GoogleFonts.figtree(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                      ),
                     ),
                     Text(
                       user == null
@@ -135,10 +154,16 @@ class _MenuLateral extends ConsumerWidget {
                           ? 'Admin geral'
                           : user.escolas.isEmpty
                           ? user.email
-                          : user.escolas.map((e) => e.roleLabel).toSet().join(' · '),
+                          : user.escolas
+                                .map((e) => e.roleLabel)
+                                .toSet()
+                                .join(' · '),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.figtree(color: AppColors.muted, fontSize: 12.5),
+                      style: GoogleFonts.figtree(
+                        color: AppColors.muted,
+                        fontSize: 12.5,
+                      ),
                     ),
                   ],
                 ),
@@ -176,14 +201,13 @@ class _MenuLateral extends ConsumerWidget {
           data: (dados) => [
             for (final grupo in dados.grupos) ...[
               Padding(
-                padding: const EdgeInsets.fromLTRB(12, 18, 12, 6),
+                padding: const EdgeInsets.fromLTRB(16, 20, 12, 6),
                 child: Text(
-                  grupo.grupo.toUpperCase(),
+                  grupo.grupo,
                   style: GoogleFonts.figtree(
                     color: AppColors.muted,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.1,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
@@ -210,11 +234,38 @@ class _MenuLateral extends ConsumerWidget {
                 style: GoogleFonts.figtree(color: AppColors.muted),
               ),
             ),
-            TextButton(onPressed: onRecarregar, child: const Text('Tentar de novo')),
+            TextButton(
+              onPressed: onRecarregar,
+              child: const Text('Tentar de novo'),
+            ),
           ],
         ),
         const SizedBox(height: 18),
-        const Divider(color: AppColors.border),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.mintSoft,
+            borderRadius: BorderRadius.circular(AppRadii.md),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.shield_outlined, color: AppColors.mint),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Dados sensíveis: use apenas para o cuidado dos alunos (LGPD).',
+                  style: GoogleFonts.figtree(
+                    fontSize: 12.5,
+                    height: 1.35,
+                    color: AppColors.text,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
         _Item(
           icone: Icons.logout_rounded,
           label: 'Sair',
@@ -242,17 +293,39 @@ class _Item extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
+      padding: const EdgeInsets.only(bottom: 4),
       child: ListTile(
         dense: true,
         selected: selecionado,
-        selectedColor: AppColors.mint,
-        selectedTileColor: AppColors.mintSoft,
+        selectedColor: AppColors.text,
+        selectedTileColor: AppColors.surfaceRaised,
         iconColor: AppColors.muted,
-        textColor: AppColors.text,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadii.sm)),
-        leading: Icon(icone, size: 22),
-        title: Text(label, style: GoogleFonts.figtree(fontWeight: FontWeight.w700, fontSize: 14.5)),
+        textColor: AppColors.text.withValues(alpha: 0.85),
+        shape: const StadiumBorder(),
+        contentPadding: const EdgeInsets.only(left: 6, right: 12),
+        horizontalTitleGap: 12,
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 4,
+              height: 22,
+              decoration: BoxDecoration(
+                color: selecionado ? AppColors.mint : Colors.transparent,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Icon(icone, size: 22, color: selecionado ? AppColors.mint : null),
+          ],
+        ),
+        title: Text(
+          label,
+          style: GoogleFonts.figtree(
+            fontWeight: selecionado ? FontWeight.w800 : FontWeight.w600,
+            fontSize: 14.5,
+          ),
+        ),
         onTap: onTap,
       ),
     );

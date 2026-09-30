@@ -45,6 +45,14 @@ class AppColors {
   ];
 
   static Color pastelFor(int index) => pastels[index % pastels.length];
+
+  /// Cartão de destaque (herói): menta → menta profundo.
+  static const heroGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [mint, mintDeep, Color(0xFF1E7A50)],
+    stops: [0, 0.65, 1],
+  );
 }
 
 class AppRadii {
@@ -81,14 +89,125 @@ class AppTheme {
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         foregroundColor: AppColors.text,
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: false,
+        toolbarHeight: 64,
         titleTextStyle: GoogleFonts.figtree(
-          fontSize: 15,
+          fontSize: 21,
           fontWeight: FontWeight.w800,
-          letterSpacing: 1.2,
-          color: AppColors.muted,
+          letterSpacing: -0.4,
+          color: AppColors.text,
+        ),
+      ),
+      cardTheme: CardThemeData(
+        color: AppColors.surface,
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.lg),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: AppColors.surfaceRaised,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.lg),
+        ),
+        titleTextStyle: GoogleFonts.figtree(
+          fontSize: 20,
+          fontWeight: FontWeight.w800,
+          color: AppColors.text,
+        ),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: AppColors.surface,
+        surfaceTintColor: Colors.transparent,
+        showDragHandle: true,
+        dragHandleColor: AppColors.border,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AppRadii.xl),
+          ),
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: AppColors.surfaceRaised,
+        selectedColor: AppColors.mint,
+        disabledColor: AppColors.locked,
+        side: BorderSide.none,
+        shape: const StadiumBorder(),
+        showCheckmark: false,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        labelStyle: GoogleFonts.figtree(
+          fontWeight: FontWeight.w700,
+          color: WidgetStateColor.resolveWith(
+            (states) => states.contains(WidgetState.selected)
+                ? AppColors.ink
+                : AppColors.text,
+          ),
+        ),
+        secondaryLabelStyle: GoogleFonts.figtree(
+          fontWeight: FontWeight.w800,
+          color: AppColors.ink,
+        ),
+        iconTheme: const IconThemeData(color: AppColors.mint, size: 18),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: AppColors.mint,
+        foregroundColor: AppColors.ink,
+        elevation: 2,
+        highlightElevation: 4,
+        shape: const StadiumBorder(),
+        extendedTextStyle: GoogleFonts.figtree(
+          fontWeight: FontWeight.w800,
+          fontSize: 15,
+        ),
+      ),
+      listTileTheme: ListTileThemeData(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+        ),
+        iconColor: AppColors.muted,
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? AppColors.ink
+              : AppColors.muted,
+        ),
+        trackColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? AppColors.mint
+              : AppColors.surfaceSoft,
+        ),
+        trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
+      ),
+      dividerTheme: const DividerThemeData(
+        color: AppColors.pathLine,
+        thickness: 1,
+        space: 1,
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: AppColors.surfaceRaised,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.md),
+        ),
+        textStyle: GoogleFonts.figtree(
+          fontWeight: FontWeight.w600,
+          color: AppColors.text,
+        ),
+      ),
+      drawerTheme: const DrawerThemeData(
+        backgroundColor: AppColors.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.horizontal(
+            right: Radius.circular(AppRadii.xl),
+          ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -102,11 +221,13 @@ class AppTheme {
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadii.md),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadii.md),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide(
+            color: AppColors.border.withValues(alpha: 0.45),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadii.md),
@@ -131,19 +252,31 @@ class AppTheme {
           minimumSize: const Size.fromHeight(54),
           elevation: 0,
           shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadii.md),
-          ),
+          shape: const StadiumBorder(),
           textStyle: GoogleFonts.figtree(
             fontSize: 17,
             fontWeight: FontWeight.w800,
           ),
         ),
       ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.text,
+          minimumSize: const Size(0, 48),
+          side: const BorderSide(color: AppColors.border, width: 1.4),
+          shape: const StadiumBorder(),
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          textStyle: GoogleFonts.figtree(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.muted,
-          textStyle: GoogleFonts.figtree(fontWeight: FontWeight.w600),
+          foregroundColor: AppColors.mint,
+          shape: const StadiumBorder(),
+          textStyle: GoogleFonts.figtree(fontWeight: FontWeight.w700),
         ),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(

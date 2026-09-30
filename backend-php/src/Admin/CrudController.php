@@ -113,9 +113,9 @@ final class CrudController
         }
         $html .= '</div>';
 
-        $top = '<a class="btn" href="' . View::e(Url::to("/admin/$key/exportar", array_filter($baseQuery, static fn ($v) => $v !== null && $v !== ''))) . '" title="Baixa a lista com a busca e os filtros atuais">Exportar Excel</a>';
+        $top = '<a class="btn btn-outline" href="' . View::e(Url::to("/admin/$key/exportar", array_filter($baseQuery, static fn ($v) => $v !== null && $v !== ''))) . '" title="Baixa a lista com a busca e os filtros atuais">' . View::icone('baixar', 16) . 'Exportar Excel</a>';
         $top .= $writable
-            ? ' <a class="btn btn-primary" href="' . View::e(Url::to("/admin/$key/create", $filters)) . '">+ Novo(a) ' . View::e(Str::lower($res['singular'])) . '</a>'
+            ? ' <a class="btn btn-primary" href="' . View::e(Url::to("/admin/$key/create", $filters)) . '">' . View::icone('mais', 16) . 'Novo(a) ' . View::e(Str::lower($res['singular'])) . '</a>'
             : '';
         return View::page($ctx, $res['plural'], $html, $key, $top);
     }

@@ -10,13 +10,18 @@ import 'cadastro_icons.dart';
 import 'cadastro_lista_screen.dart';
 
 class CadastroDetalheScreen extends ConsumerStatefulWidget {
-  const CadastroDetalheScreen({super.key, required this.cadastroKey, required this.id});
+  const CadastroDetalheScreen({
+    super.key,
+    required this.cadastroKey,
+    required this.id,
+  });
 
   final String cadastroKey;
   final int id;
 
   @override
-  ConsumerState<CadastroDetalheScreen> createState() => _CadastroDetalheScreenState();
+  ConsumerState<CadastroDetalheScreen> createState() =>
+      _CadastroDetalheScreenState();
 }
 
 class _CadastroDetalheScreenState extends ConsumerState<CadastroDetalheScreen> {
@@ -42,12 +47,19 @@ class _CadastroDetalheScreenState extends ConsumerState<CadastroDetalheScreen> {
       });
     } catch (error) {
       if (!mounted) return;
-      setState(() => _erro = mensagemDeErro(error, 'Não foi possível carregar o registro.'));
+      setState(
+        () => _erro = mensagemDeErro(
+          error,
+          'Não foi possível carregar o registro.',
+        ),
+      );
     }
   }
 
   void _avisar(String mensagem) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(mensagem)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(mensagem)));
   }
 
   Future<bool> _confirmar(String titulo, String? texto) async {
@@ -58,8 +70,14 @@ class _CadastroDetalheScreenState extends ConsumerState<CadastroDetalheScreen> {
         title: Text(titulo),
         content: texto == null ? null : Text(texto),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Confirmar')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirmar'),
+          ),
         ],
       ),
     );
@@ -69,7 +87,8 @@ class _CadastroDetalheScreenState extends ConsumerState<CadastroDetalheScreen> {
   Future<void> _editar() async {
     final salvo = await Navigator.of(context).push<int>(
       MaterialPageRoute(
-        builder: (_) => CadastroFormScreen(cadastroKey: widget.cadastroKey, id: widget.id),
+        builder: (_) =>
+            CadastroFormScreen(cadastroKey: widget.cadastroKey, id: widget.id),
       ),
     );
     if (salvo != null) await _carregar();
@@ -77,7 +96,12 @@ class _CadastroDetalheScreenState extends ConsumerState<CadastroDetalheScreen> {
 
   Future<void> _excluir() async {
     final registro = _registro!;
-    if (!await _confirmar('Excluir ${registro.singular.toLowerCase()}?', registro.titulo)) return;
+    if (!await _confirmar(
+      'Excluir ${registro.singular.toLowerCase()}?',
+      registro.titulo,
+    )) {
+      return;
+    }
     setState(() => _ocupado = true);
     try {
       final mensagem = await _repo.excluir(widget.cadastroKey, widget.id);
@@ -95,7 +119,9 @@ class _CadastroDetalheScreenState extends ConsumerState<CadastroDetalheScreen> {
     if (!await _confirmar(acao.label, acao.confirmar)) return;
     setState(() => _ocupado = true);
     try {
-      final mensagem = await _repo.executarAcao(widget.cadastroKey, acao.nome, [widget.id]);
+      final mensagem = await _repo.executarAcao(widget.cadastroKey, acao.nome, [
+        widget.id,
+      ]);
       if (!mounted) return;
       _avisar(mensagem);
       await _carregar();
@@ -112,7 +138,10 @@ class _CadastroDetalheScreenState extends ConsumerState<CadastroDetalheScreen> {
     if (meta == null || !mounted) return;
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (_) => CadastroListaScreen(meta: meta, filtros: {rel.field: '${widget.id}'}),
+        builder: (_) => CadastroListaScreen(
+          meta: meta,
+          filtros: {rel.field: '${widget.id}'},
+        ),
       ),
     );
     await _carregar();
@@ -129,7 +158,9 @@ class _CadastroDetalheScreenState extends ConsumerState<CadastroDetalheScreen> {
     );
     if (novoId == null || !mounted) return;
     await Navigator.of(context).push<void>(
-      MaterialPageRoute(builder: (_) => CadastroDetalheScreen(cadastroKey: rel.key, id: novoId)),
+      MaterialPageRoute(
+        builder: (_) => CadastroDetalheScreen(cadastroKey: rel.key, id: novoId),
+      ),
     );
     await _carregar();
   }
@@ -139,7 +170,7 @@ class _CadastroDetalheScreenState extends ConsumerState<CadastroDetalheScreen> {
     final registro = _registro;
     return Scaffold(
       appBar: AppBar(
-        title: Text((registro?.singular ?? '').toUpperCase()),
+        title: Text(registro?.singular ?? ''),
         actions: [
           if (registro?.podeEditar == true) ...[
             IconButton(
@@ -159,7 +190,10 @@ class _CadastroDetalheScreenState extends ConsumerState<CadastroDetalheScreen> {
           ? Center(
               child: _erro == null
                   ? const CircularProgressIndicator()
-                  : Padding(padding: const EdgeInsets.all(24), child: Text(_erro!, textAlign: TextAlign.center)),
+                  : Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(_erro!, textAlign: TextAlign.center),
+                    ),
             )
           : RefreshIndicator(
               onRefresh: _carregar,
@@ -168,7 +202,11 @@ class _CadastroDetalheScreenState extends ConsumerState<CadastroDetalheScreen> {
                 children: [
                   Text(
                     registro.titulo,
-                    style: GoogleFonts.figtree(fontSize: 24, fontWeight: FontWeight.w800, height: 1.2),
+                    style: GoogleFonts.figtree(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      height: 1.2,
+                    ),
                   ),
                   if (registro.acoes.isNotEmpty) ...[
                     const SizedBox(height: 14),
@@ -190,25 +228,52 @@ class _CadastroDetalheScreenState extends ConsumerState<CadastroDetalheScreen> {
                     ),
                   ],
                   if (registro.relacionados.isNotEmpty) ...[
-                    const SizedBox(height: 22),
+                    const SizedBox(height: 24),
                     _Titulo('Conteúdo'),
-                    const SizedBox(height: 8),
-                    for (final rel in registro.relacionados)
+                    for (final (i, rel) in registro.relacionados.indexed)
                       Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.only(bottom: 10),
                         child: Material(
-                          color: AppColors.surfaceRaised,
-                          borderRadius: BorderRadius.circular(AppRadii.sm),
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(AppRadii.md),
                           child: ListTile(
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadii.sm)),
-                            leading: Icon(iconeDoCadastro(rel.key), color: AppColors.mint),
-                            title: Text(rel.label, style: const TextStyle(fontWeight: FontWeight.w700)),
+                            contentPadding: const EdgeInsets.fromLTRB(
+                              12,
+                              6,
+                              8,
+                              6,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(AppRadii.md),
+                            ),
+                            leading: Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: AppColors.pastelFor(i),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Icon(
+                                iconeDoCadastro(rel.key),
+                                color: AppColors.ink,
+                                size: 22,
+                              ),
+                            ),
+                            title: Text(
+                              rel.label,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                             subtitle: Text('${rel.count} cadastrado(s)'),
                             onTap: () => _abrirLista(rel),
                             trailing: rel.canAdd
                                 ? IconButton(
                                     tooltip: 'Adicionar',
-                                    icon: const Icon(Icons.add_circle_outline, color: AppColors.mint),
+                                    icon: const Icon(
+                                      Icons.add_circle_outline,
+                                      color: AppColors.mint,
+                                    ),
                                     onPressed: () => _adicionar(rel),
                                   )
                                 : const Icon(Icons.chevron_right),
@@ -216,17 +281,17 @@ class _CadastroDetalheScreenState extends ConsumerState<CadastroDetalheScreen> {
                         ),
                       ),
                   ],
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 24),
                   _Titulo('Dados'),
-                  const SizedBox(height: 8),
                   Container(
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceRaised,
-                      borderRadius: BorderRadius.circular(AppRadii.sm),
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(AppRadii.md),
                     ),
                     child: Column(
                       children: [
-                        for (final campo in registro.campos) _CampoLinha(campo: campo),
+                        for (final campo in registro.campos)
+                          _CampoLinha(campo: campo),
                       ],
                     ),
                   ),
@@ -243,13 +308,15 @@ class _Titulo extends StatelessWidget {
   final String texto;
 
   @override
-  Widget build(BuildContext context) => Text(
-    texto.toUpperCase(),
-    style: GoogleFonts.figtree(
-      color: AppColors.muted,
-      fontWeight: FontWeight.w800,
-      letterSpacing: 1.1,
-      fontSize: 12,
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Text(
+      texto,
+      style: GoogleFonts.figtree(
+        fontSize: 18,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.3,
+      ),
     ),
   );
 }
@@ -274,8 +341,14 @@ class _CampoLinha extends StatelessWidget {
                   child: Text.rich(
                     TextSpan(
                       children: [
-                        TextSpan(text: '${par.key}: ', style: const TextStyle(color: AppColors.muted)),
-                        TextSpan(text: par.value, style: const TextStyle(fontWeight: FontWeight.w700)),
+                        TextSpan(
+                          text: '${par.key}: ',
+                          style: const TextStyle(color: AppColors.muted),
+                        ),
+                        TextSpan(
+                          text: par.value,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
                       ],
                     ),
                   ),
@@ -294,7 +367,8 @@ class _CampoLinha extends StatelessWidget {
           ? null
           : () => Navigator.of(context).push<void>(
               MaterialPageRoute(
-                builder: (_) => CadastroDetalheScreen(cadastroKey: linkKey, id: linkId),
+                builder: (_) =>
+                    CadastroDetalheScreen(cadastroKey: linkKey, id: linkId),
               ),
             ),
       child: Padding(
@@ -302,7 +376,13 @@ class _CampoLinha extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(campo.label, style: GoogleFonts.figtree(color: AppColors.muted, fontSize: 12.5)),
+            Text(
+              campo.label,
+              style: GoogleFonts.figtree(
+                color: AppColors.muted,
+                fontSize: 12.5,
+              ),
+            ),
             const SizedBox(height: 3),
             SizedBox(width: double.infinity, child: valor),
           ],

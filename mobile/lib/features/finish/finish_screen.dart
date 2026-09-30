@@ -61,7 +61,7 @@ class _FinishScreenState extends ConsumerState<FinishScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('PRONTO')),
+      appBar: AppBar(title: const Text('Pronto')),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
@@ -92,7 +92,7 @@ class _FinishScreenState extends ConsumerState<FinishScreen> {
                 ),
                 decoration: BoxDecoration(
                   color: AppColors.pastelMint,
-                  borderRadius: BorderRadius.circular(AppRadii.md),
+                  borderRadius: BorderRadius.circular(99),
                 ),
                 child: Row(
                   children: [

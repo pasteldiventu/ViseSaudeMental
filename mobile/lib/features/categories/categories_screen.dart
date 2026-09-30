@@ -7,6 +7,7 @@ import '../../data/local/app_database.dart';
 import '../../providers/app_providers.dart';
 import '../common/brand_and_progress.dart';
 import '../common/tactile_button.dart';
+import '../common/ui_kit.dart';
 import '../finish/finish_screen.dart';
 import '../questions/question_screen.dart';
 
@@ -34,7 +35,7 @@ class CategoriesScreen extends ConsumerWidget {
           onPressed: () => ref.read(appControllerProvider).voltarParaLista(),
           icon: const Icon(Icons.arrow_back_rounded),
         ),
-        title: const Text('CAMINHO'),
+        title: const Text('Caminho'),
         actions: [
           PopupMenuButton<String>(
             onSelected: (value) async {
@@ -54,10 +55,7 @@ class CategoriesScreen extends ConsumerWidget {
               }
             },
             itemBuilder: (_) => const [
-              PopupMenuItem(
-                value: 'home',
-                child: Text('Meus questionários'),
-              ),
+              PopupMenuItem(value: 'home', child: Text('Meus questionários')),
               PopupMenuItem(
                 value: 'clear',
                 child: Text('Limpar respostas locais'),
@@ -93,9 +91,7 @@ class CategoriesScreen extends ConsumerWidget {
                     final questions = groups[i];
                     totalQuestions += questions.length;
                     final answeredInCategory = questions
-                        .where(
-                          (q) => progress.any((a) => a.perguntaId == q.id),
-                        )
+                        .where((q) => progress.any((a) => a.perguntaId == q.id))
                         .length;
                     answeredQuestions += answeredInCategory;
                     final done =
@@ -115,7 +111,7 @@ class CategoriesScreen extends ConsumerWidget {
                     children: [
                       ProgressBanner(
                         eyebrow: 'Questionário',
-                        title: 'Cuide de você,\numa etapa de cada vez.',
+                        title: 'Cuide de você, uma etapa de cada vez.',
                         progressLabel: totalQuestions == 0
                             ? 'Nenhuma pergunta disponível'
                             : '$answeredQuestions de $totalQuestions perguntas',
@@ -126,8 +122,9 @@ class CategoriesScreen extends ConsumerWidget {
                       if (currentIndex >= 0 && !allDone) ...[
                         const SizedBox(height: 14),
                         SoftPromptCard(
-                          title: 'Continuar: ${categories[currentIndex].titulo}',
-                          actionLabel: 'Abrir →',
+                          title:
+                              'Continuar: ${categories[currentIndex].titulo}',
+                          actionLabel: 'Toque para continuar',
                           onTap: () => Navigator.of(context).push(
                             MaterialPageRoute<void>(
                               builder: (_) => QuestionScreen(
@@ -138,17 +135,11 @@ class CategoriesScreen extends ConsumerWidget {
                           ),
                         ),
                       ],
-                      const SizedBox(height: 22),
-                      Text(
-                        'Etapas · $doneCount/${categories.length}',
-                        style: GoogleFonts.figtree(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.2,
-                          color: AppColors.muted,
-                        ),
+                      const SizedBox(height: 24),
+                      SecaoTitulo(
+                        'Etapas',
+                        detalhe: '$doneCount de ${categories.length}',
                       ),
-                      const SizedBox(height: 12),
                       if (categories.isEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 40),
@@ -270,7 +261,11 @@ class _PastelCategoryCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(icon, color: AppColors.ink.withValues(alpha: 0.55), size: 26),
+                  Icon(
+                    icon,
+                    color: AppColors.ink.withValues(alpha: 0.55),
+                    size: 26,
+                  ),
                   const Spacer(),
                   if (done)
                     const Icon(

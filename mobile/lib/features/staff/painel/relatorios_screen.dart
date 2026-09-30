@@ -12,7 +12,11 @@ import 'painel_widgets.dart';
 
 /// Relatório em Excel com filtros (escola, turma, série, turno, sexo, questionário, período).
 class RelatoriosScreen extends ConsumerStatefulWidget {
-  const RelatoriosScreen({super.key, this.drawer, this.filtrosIniciais = const {}});
+  const RelatoriosScreen({
+    super.key,
+    this.drawer,
+    this.filtrosIniciais = const {},
+  });
 
   final Widget? drawer;
   final Map<String, String> filtrosIniciais;
@@ -22,7 +26,10 @@ class RelatoriosScreen extends ConsumerStatefulWidget {
 }
 
 class _RelatoriosScreenState extends ConsumerState<RelatoriosScreen> {
-  late final Map<String, String> _filtros = {'periodo': 'tudo', ...widget.filtrosIniciais};
+  late final Map<String, String> _filtros = {
+    'periodo': 'tudo',
+    ...widget.filtrosIniciais,
+  };
   Set<String>? _abas;
   bool _anonimizar = false;
   bool _gerando = false;
@@ -44,14 +51,17 @@ class _RelatoriosScreenState extends ConsumerState<RelatoriosScreen> {
       context: context,
       firstDate: DateTime(2020),
       lastDate: hoje,
-      initialDateRange: inicio != null && fim != null ? DateTimeRange(start: inicio, end: fim) : null,
+      initialDateRange: inicio != null && fim != null
+          ? DateTimeRange(start: inicio, end: fim)
+          : null,
       helpText: 'Período do relatório',
     );
     if (faixa == null) {
       setState(() => _versaoPeriodo++);
       return;
     }
-    String iso(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    String iso(DateTime d) =>
+        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
     setState(() {
       _filtros['periodo'] = 'personalizado';
       _filtros['inicio'] = iso(faixa.start);
@@ -62,7 +72,12 @@ class _RelatoriosScreenState extends ConsumerState<RelatoriosScreen> {
   Future<void> _gerar(List<AbaRelatorio> todas) async {
     setState(() => _gerando = true);
     try {
-      final abas = _abas ?? {for (final a in todas) if (a.padrao) a.chave};
+      final abas =
+          _abas ??
+          {
+            for (final a in todas)
+              if (a.padrao) a.chave,
+          };
       final filtros = Map.of(_filtros);
       if (filtros['periodo'] != 'personalizado') {
         filtros
@@ -71,15 +86,25 @@ class _RelatoriosScreenState extends ConsumerState<RelatoriosScreen> {
       }
       final arquivo = await ref
           .read(painelRepositoryProvider)
-          .exportarRelatorio(filtros, abas: abas.toList(), anonimizar: _anonimizar);
+          .exportarRelatorio(
+            filtros,
+            abas: abas.toList(),
+            anonimizar: _anonimizar,
+          );
       await entregarArquivo(arquivo.bytes, arquivo.nome);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Relatório gerado: ${arquivo.nome}')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Relatório gerado: ${arquivo.nome}')),
+        );
       }
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(mensagemDeErro(error, 'Não foi possível gerar o relatório.'))),
+          SnackBar(
+            content: Text(
+              mensagemDeErro(error, 'Não foi possível gerar o relatório.'),
+            ),
+          ),
         );
       }
     } finally {
@@ -92,7 +117,7 @@ class _RelatoriosScreenState extends ConsumerState<RelatoriosScreen> {
     final opcoes = ref.watch(opcoesRelatorioProvider);
     return Scaffold(
       drawer: widget.drawer,
-      appBar: AppBar(title: const Text('RELATÓRIOS')),
+      appBar: AppBar(title: const Text('Relatórios')),
       body: opcoes.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
@@ -100,7 +125,10 @@ class _RelatoriosScreenState extends ConsumerState<RelatoriosScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(mensagemDeErro(e, 'Não foi possível carregar os filtros.')),
-              TextButton(onPressed: () => ref.invalidate(opcoesRelatorioProvider), child: const Text('Tentar de novo')),
+              TextButton(
+                onPressed: () => ref.invalidate(opcoesRelatorioProvider),
+                child: const Text('Tentar de novo'),
+              ),
             ],
           ),
         ),
@@ -111,18 +139,27 @@ class _RelatoriosScreenState extends ConsumerState<RelatoriosScreen> {
 
   Widget _formulario(OpcoesRelatorio o) {
     final escola = _filtros['escola_id'];
-    final turmas = o.turmas.where((t) => escola == null || '${t.escolaId}' == escola).toList();
-    final abas = _abas ?? {for (final a in o.abas) if (a.padrao) a.chave};
+    final turmas = o.turmas
+        .where((t) => escola == null || '${t.escolaId}' == escola)
+        .toList();
+    final abas =
+        _abas ??
+        {
+          for (final a in o.abas)
+            if (a.padrao) a.chave,
+        };
     final personalizado = _filtros['periodo'] == 'personalizado';
 
-    Widget campo(Widget child) => Padding(padding: const EdgeInsets.only(bottom: 12), child: child);
+    Widget campo(Widget child) =>
+        Padding(padding: const EdgeInsets.only(bottom: 12), child: child);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
       children: [
         CartaoSecao(
           titulo: '1. Recorte dos dados',
-          subtitulo: 'Deixe em branco para incluir tudo o que seu perfil pode ver.',
+          subtitulo:
+              'Deixe em branco para incluir tudo o que seu perfil pode ver.',
           child: Column(
             children: [
               if (o.escolas.length > 1)
@@ -145,7 +182,13 @@ class _RelatoriosScreenState extends ConsumerState<RelatoriosScreen> {
                   vazio: 'Todas as turmas',
                   valor: _filtros['turma_id'],
                   opcoes: [
-                    for (final t in turmas) Opcao('${t.id}', o.escolas.length > 1 && escola == null ? '${t.nome} — ${t.escola}' : t.nome),
+                    for (final t in turmas)
+                      Opcao(
+                        '${t.id}',
+                        o.escolas.length > 1 && escola == null
+                            ? '${t.nome} — ${t.escola}'
+                            : t.nome,
+                      ),
                   ],
                   onChanged: (v) => _definir('turma_id', v),
                 ),
@@ -189,7 +232,9 @@ class _RelatoriosScreenState extends ConsumerState<RelatoriosScreen> {
               ),
               campo(
                 SeletorOpcao(
-                  key: ValueKey('periodo-${_filtros['periodo']}-$_versaoPeriodo'),
+                  key: ValueKey(
+                    'periodo-${_filtros['periodo']}-$_versaoPeriodo',
+                  ),
                   rotulo: 'Período',
                   vazio: null,
                   valor: _filtros['periodo'],
@@ -208,7 +253,9 @@ class _RelatoriosScreenState extends ConsumerState<RelatoriosScreen> {
                   onPressed: _escolherDatas,
                   icon: const Icon(Icons.date_range_rounded),
                   label: Text(
-                    _filtros['inicio'] == null ? 'Escolher datas' : '${_br(_filtros['inicio'])} a ${_br(_filtros['fim'])}',
+                    _filtros['inicio'] == null
+                        ? 'Escolher datas'
+                        : '${_br(_filtros['inicio'])} a ${_br(_filtros['fim'])}',
                   ),
                 ),
             ],
@@ -227,21 +274,38 @@ class _RelatoriosScreenState extends ConsumerState<RelatoriosScreen> {
                       ? null
                       : (marcado) => setState(() {
                           final novas = {...abas};
-                          marcado == true ? novas.add(a.chave) : novas.remove(a.chave);
+                          marcado == true
+                              ? novas.add(a.chave)
+                              : novas.remove(a.chave);
                           _abas = novas;
                         }),
-                  title: Text(a.rotulo, style: GoogleFonts.figtree(fontWeight: FontWeight.w700)),
-                  subtitle: Text(a.descricao, style: GoogleFonts.figtree(color: AppColors.muted, fontSize: 12.5)),
+                  title: Text(
+                    a.rotulo,
+                    style: GoogleFonts.figtree(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(
+                    a.descricao,
+                    style: GoogleFonts.figtree(
+                      color: AppColors.muted,
+                      fontSize: 12.5,
+                    ),
+                  ),
                 ),
               const Divider(color: AppColors.border),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 value: _anonimizar,
                 onChanged: (v) => setState(() => _anonimizar = v),
-                title: Text('Anonimizar alunos', style: GoogleFonts.figtree(fontWeight: FontWeight.w700)),
+                title: Text(
+                  'Anonimizar alunos',
+                  style: GoogleFonts.figtree(fontWeight: FontWeight.w700),
+                ),
                 subtitle: Text(
                   'Troca nomes por códigos e remove CPF, matrícula e contatos. Use para compartilhar com pesquisa ou secretaria.',
-                  style: GoogleFonts.figtree(color: AppColors.muted, fontSize: 12.5),
+                  style: GoogleFonts.figtree(
+                    color: AppColors.muted,
+                    fontSize: 12.5,
+                  ),
                 ),
               ),
             ],
@@ -250,7 +314,11 @@ class _RelatoriosScreenState extends ConsumerState<RelatoriosScreen> {
         FilledButton.icon(
           onPressed: _gerando ? null : () => _gerar(o.abas),
           icon: _gerando
-              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5))
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                )
               : const Icon(Icons.download_rounded),
           label: Text(_gerando ? 'Gerando…' : 'Baixar relatório (.xlsx)'),
         ),

@@ -13,5 +13,8 @@ Future<void> entregarArquivo(Uint8List bytes, String nome, String mime) async {
   web.document.body?.append(link);
   link.click();
   link.remove();
-  Future<void>.delayed(const Duration(minutes: 1), () => web.URL.revokeObjectURL(url));
+  Future<void>.delayed(
+    const Duration(minutes: 1),
+    () => web.URL.revokeObjectURL(url),
+  );
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/theme/app_theme.dart';
+import 'ui_kit.dart';
 
 class ViseBrandMark extends StatelessWidget {
   const ViseBrandMark({super.key, this.compact = false});
@@ -61,53 +62,76 @@ class ProgressBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceSoft,
-        borderRadius: BorderRadius.circular(AppRadii.lg),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    final pct = value.clamp(0.0, 1.0);
+    return HeroCard(
+      child: Row(
         children: [
-          Text(
-            eyebrow.toUpperCase(),
-            style: GoogleFonts.figtree(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.4,
-              color: AppColors.mint,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text(
+                    eyebrow,
+                    style: GoogleFonts.figtree(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  title,
+                  style: GoogleFonts.figtree(
+                    fontSize: 23,
+                    fontWeight: FontWeight.w800,
+                    height: 1.15,
+                    letterSpacing: -0.6,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  progressLabel,
+                  style: GoogleFonts.figtree(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.ink.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: GoogleFonts.figtree(
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-              color: AppColors.text,
-              height: 1.15,
-              letterSpacing: -0.6,
-            ),
-          ),
-          const SizedBox(height: 14),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(99),
-            child: LinearProgressIndicator(
-              value: value.clamp(0.0, 1.0),
-              minHeight: 8,
-              backgroundColor: Colors.white12,
-              color: AppColors.mint,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            progressLabel,
-            style: GoogleFonts.figtree(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AppColors.muted,
+          const SizedBox(width: 14),
+          SizedBox.square(
+            dimension: 84,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                CircularProgressIndicator(
+                  value: pct,
+                  strokeWidth: 9,
+                  strokeCap: StrokeCap.round,
+                  backgroundColor: AppColors.ink.withValues(alpha: 0.14),
+                  color: AppColors.ink,
+                ),
+                Center(
+                  child: Text(
+                    '${(pct * 100).round()}%',
+                    style: GoogleFonts.figtree(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -131,35 +155,65 @@ class SoftPromptCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surfaceSoft,
+      color: AppColors.surface,
       borderRadius: BorderRadius.circular(AppRadii.lg),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadii.lg),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 22, 18, 18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.fromLTRB(16, 16, 14, 16),
+          child: Row(
             children: [
-              Text(
-                title,
-                style: GoogleFonts.figtree(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  height: 1.2,
-                  letterSpacing: -0.4,
+              Container(
+                width: 48,
+                height: 48,
+                decoration: const BoxDecoration(
+                  color: AppColors.mintSoft,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.play_arrow_rounded,
+                  color: AppColors.mint,
+                  size: 28,
                 ),
               ),
-              const SizedBox(height: 18),
-              Align(
-                alignment: Alignment.bottomRight,
-                child: Text(
-                  actionLabel,
-                  style: GoogleFonts.figtree(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.mint,
-                  ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.figtree(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        height: 1.2,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      actionLabel,
+                      style: GoogleFonts.figtree(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.mint,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                width: 40,
+                height: 40,
+                decoration: const BoxDecoration(
+                  color: AppColors.surfaceRaised,
+                  shape: BoxShape.circle,
+                ),
+                child: Transform.rotate(
+                  angle: -0.785,
+                  child: const Icon(Icons.arrow_forward_rounded, size: 20),
                 ),
               ),
             ],

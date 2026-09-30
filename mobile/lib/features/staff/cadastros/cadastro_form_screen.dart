@@ -26,7 +26,15 @@ class CadastroFormScreen extends ConsumerStatefulWidget {
   ConsumerState<CadastroFormScreen> createState() => _CadastroFormScreenState();
 }
 
-const _textuais = {'text', 'email', 'textarea', 'int', 'decimal', 'password', 'color'};
+const _textuais = {
+  'text',
+  'email',
+  'textarea',
+  'int',
+  'decimal',
+  'password',
+  'color',
+};
 
 const _paleta = [
   '#14B8A6',
@@ -65,14 +73,19 @@ class _CadastroFormScreenState extends ConsumerState<CadastroFormScreen> {
     try {
       final form = await ref
           .read(cadastrosRepositoryProvider)
-          .formulario(widget.cadastroKey, id: widget.id, preencher: widget.preencher);
+          .formulario(
+            widget.cadastroKey,
+            id: widget.id,
+            preencher: widget.preencher,
+          );
       for (final campo in form.campos) {
         final valor = campo.valor;
         if (_textuais.contains(campo.tipo)) {
-          _controllers[campo.name] = TextEditingController(text: valor?.toString() ?? '')
-            ..addListener(() {
-              if (campo.tipo == 'color') setState(() {});
-            });
+          _controllers[campo.name] =
+              TextEditingController(text: valor?.toString() ?? '')
+                ..addListener(() {
+                  if (campo.tipo == 'color') setState(() {});
+                });
         } else if (campo.tipo == 'bool') {
           _valores[campo.name] = valor == true;
         } else if (campo.tipo == 'select' || campo.tipo == 'fk') {
@@ -88,7 +101,12 @@ class _CadastroFormScreenState extends ConsumerState<CadastroFormScreen> {
       setState(() => _form = form);
     } catch (error) {
       if (!mounted) return;
-      setState(() => _erro = mensagemDeErro(error, 'Não foi possível abrir o formulário.'));
+      setState(
+        () => _erro = mensagemDeErro(
+          error,
+          'Não foi possível abrir o formulário.',
+        ),
+      );
     }
   }
 
@@ -110,7 +128,9 @@ class _CadastroFormScreenState extends ConsumerState<CadastroFormScreen> {
           .read(cadastrosRepositoryProvider)
           .salvar(widget.cadastroKey, dados, id: widget.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.mensagem)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(result.mensagem)));
       Navigator.of(context).pop(result.id);
     } catch (error) {
       if (!mounted) return;
@@ -125,7 +145,7 @@ class _CadastroFormScreenState extends ConsumerState<CadastroFormScreen> {
   Widget build(BuildContext context) {
     final form = _form;
     return Scaffold(
-      appBar: AppBar(title: Text((form?.titulo ?? 'Carregando…').toUpperCase())),
+      appBar: AppBar(title: Text(form?.titulo ?? 'Carregando…')),
       body: form == null
           ? Center(
               child: _erro == null
@@ -137,46 +157,52 @@ class _CadastroFormScreenState extends ConsumerState<CadastroFormScreen> {
             )
           : Form(
               key: _formKey,
-              child: ListView(
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-                children: [
-                  for (final campo in form.campos) ...[
-                    _campo(campo),
-                    const SizedBox(height: 14),
-                  ],
-                  if (_erro != null) ...[
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: const Color(0x33F43F5E),
-                        borderRadius: BorderRadius.circular(AppRadii.sm),
-                      ),
-                      child: Text(
-                        _erro!,
-                        style: GoogleFonts.figtree(
-                          color: const Color(0xFFFFB4B4),
-                          fontWeight: FontWeight.w600,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final campo in form.campos) ...[
+                      _campo(campo),
+                      const SizedBox(height: 14),
+                    ],
+                    if (_erro != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0x33F43F5E),
+                          borderRadius: BorderRadius.circular(AppRadii.sm),
+                        ),
+                        child: Text(
+                          _erro!,
+                          style: GoogleFonts.figtree(
+                            color: const Color(0xFFFFB4B4),
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
+                      const SizedBox(height: 14),
+                    ],
+                    FilledButton(
+                      onPressed: _salvando ? null : _salvar,
+                      child: _salvando
+                          ? const SizedBox.square(
+                              dimension: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.4,
+                              ),
+                            )
+                          : const Text('Salvar'),
                     ),
-                    const SizedBox(height: 14),
                   ],
-                  FilledButton(
-                    onPressed: _salvando ? null : _salvar,
-                    child: _salvando
-                        ? const SizedBox.square(
-                            dimension: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2.4),
-                          )
-                        : const Text('Salvar'),
-                  ),
-                ],
+                ),
               ),
             ),
     );
   }
 
-  String _rotulo(CampoFormulario campo) => campo.obrigatorio ? '${campo.label} *' : campo.label;
+  String _rotulo(CampoFormulario campo) =>
+      campo.obrigatorio ? '${campo.label} *' : campo.label;
 
   String? _obrigatorio(CampoFormulario campo, Object? valor) {
     if (!campo.obrigatorio) return null;
@@ -243,14 +269,19 @@ class _CadastroFormScreenState extends ConsumerState<CadastroFormScreen> {
       keyboardType: switch (campo.tipo) {
         'email' => TextInputType.emailAddress,
         'int' => const TextInputType.numberWithOptions(signed: true),
-        'decimal' => const TextInputType.numberWithOptions(decimal: true, signed: true),
+        'decimal' => const TextInputType.numberWithOptions(
+          decimal: true,
+          signed: true,
+        ),
         'textarea' => TextInputType.multiline,
         _ => TextInputType.text,
       },
       inputFormatters: [
         if (campo.max != null) LengthLimitingTextInputFormatter(campo.max),
-        if (campo.tipo == 'int') FilteringTextInputFormatter.allow(RegExp(r'^-?\d*')),
-        if (campo.tipo == 'decimal') FilteringTextInputFormatter.allow(RegExp(r'^-?[\d.,]*')),
+        if (campo.tipo == 'int')
+          FilteringTextInputFormatter.allow(RegExp(r'^-?\d*')),
+        if (campo.tipo == 'decimal')
+          FilteringTextInputFormatter.allow(RegExp(r'^-?[\d.,]*')),
       ],
       decoration: InputDecoration(
         labelText: _rotulo(campo),
@@ -260,7 +291,10 @@ class _CadastroFormScreenState extends ConsumerState<CadastroFormScreen> {
         prefixIcon: campo.tipo == 'color'
             ? Padding(
                 padding: const EdgeInsets.all(14),
-                child: CircleAvatar(radius: 10, backgroundColor: cor ?? AppColors.locked),
+                child: CircleAvatar(
+                  radius: 10,
+                  backgroundColor: cor ?? AppColors.locked,
+                ),
               )
             : null,
       ),
@@ -268,7 +302,10 @@ class _CadastroFormScreenState extends ConsumerState<CadastroFormScreen> {
         if (campo.tipo == 'password' && widget.id != null) return null;
         final erro = _obrigatorio(campo, v);
         if (erro != null) return erro;
-        if (numerico && v != null && v.trim().isNotEmpty && num.tryParse(v.replaceAll(',', '.')) == null) {
+        if (numerico &&
+            v != null &&
+            v.trim().isNotEmpty &&
+            num.tryParse(v.replaceAll(',', '.')) == null) {
           return 'Informe um número.';
         }
         return null;
@@ -290,7 +327,9 @@ class _CadastroFormScreenState extends ConsumerState<CadastroFormScreen> {
                 onTap: () => controller.text = hex,
                 child: CircleAvatar(
                   radius: 16,
-                  backgroundColor: Color(0xFF000000 | int.parse(hex.substring(1), radix: 16)),
+                  backgroundColor: Color(
+                    0xFF000000 | int.parse(hex.substring(1), radix: 16),
+                  ),
                   child: controller.text.toUpperCase() == hex
                       ? const Icon(Icons.check, size: 16, color: Colors.white)
                       : null,
@@ -306,9 +345,13 @@ class _CadastroFormScreenState extends ConsumerState<CadastroFormScreen> {
     final valor = _valores[campo.name] as String?;
     final comHora = campo.tipo == 'datetime';
     String exibicao = '';
-    final data = valor == null ? null : DateTime.tryParse(valor.replaceFirst(' ', 'T'));
+    final data = valor == null
+        ? null
+        : DateTime.tryParse(valor.replaceFirst(' ', 'T'));
     if (data != null) {
-      exibicao = DateFormat(comHora ? 'dd/MM/yyyy HH:mm' : 'dd/MM/yyyy').format(data);
+      exibicao = DateFormat(
+        comHora ? 'dd/MM/yyyy HH:mm' : 'dd/MM/yyyy',
+      ).format(data);
     }
     return FormField<String>(
       initialValue: valor,
@@ -332,9 +375,17 @@ class _CadastroFormScreenState extends ConsumerState<CadastroFormScreen> {
               initialTime: TimeOfDay.fromDateTime(data ?? agora),
             );
             if (hora == null) return;
-            escolhido = DateTime(dia.year, dia.month, dia.day, hora.hour, hora.minute);
+            escolhido = DateTime(
+              dia.year,
+              dia.month,
+              dia.day,
+              hora.hour,
+              hora.minute,
+            );
           }
-          final texto = DateFormat(comHora ? 'yyyy-MM-dd HH:mm' : 'yyyy-MM-dd').format(escolhido);
+          final texto = DateFormat(
+            comHora ? 'yyyy-MM-dd HH:mm' : 'yyyy-MM-dd',
+          ).format(escolhido);
           setState(() => _valores[campo.name] = texto);
           state.didChange(texto);
         },
@@ -343,7 +394,9 @@ class _CadastroFormScreenState extends ConsumerState<CadastroFormScreen> {
             labelText: _rotulo(campo),
             helperText: campo.ajuda,
             errorText: state.errorText,
-            prefixIcon: Icon(comHora ? Icons.event_outlined : Icons.calendar_today_outlined),
+            prefixIcon: Icon(
+              comHora ? Icons.event_outlined : Icons.calendar_today_outlined,
+            ),
             suffixIcon: valor == null || campo.obrigatorio
                 ? null
                 : IconButton(

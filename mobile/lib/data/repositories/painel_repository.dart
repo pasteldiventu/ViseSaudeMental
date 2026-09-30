@@ -12,7 +12,12 @@ class Opcao {
 }
 
 class TurmaOpcao {
-  const TurmaOpcao({required this.id, required this.nome, required this.escolaId, required this.escola});
+  const TurmaOpcao({
+    required this.id,
+    required this.nome,
+    required this.escolaId,
+    required this.escola,
+  });
 
   final int id;
   final String nome;
@@ -106,7 +111,12 @@ class ResumoPainel {
 }
 
 class FaixaClassificacao {
-  const FaixaClassificacao({required this.rotulo, required this.nivel, required this.qtd, required this.pct});
+  const FaixaClassificacao({
+    required this.rotulo,
+    required this.nivel,
+    required this.qtd,
+    required this.pct,
+  });
 
   final String rotulo;
   final String? nivel;
@@ -212,12 +222,19 @@ class DadosPainel {
       pontos = _maps(_map(j['evolucao'])['pontos'])
           .map((p) => (rotulo: '${p['rotulo'] ?? ''}', valor: _int(p['valor'])))
           .toList(),
-      classificacao = _maps(j['classificacao']).map(CategoriaClassificacao.fromJson).toList(),
+      classificacao = _maps(
+        j['classificacao'],
+      ).map(CategoriaClassificacao.fromJson).toList(),
       turmas = _maps(j['turmas']).map(TurmaPainel.fromJson).toList(),
-      aplicacoes = _maps(j['aplicacoes']).map(AplicacaoPainel.fromJson).toList(),
+      aplicacoes = _maps(
+        j['aplicacoes'],
+      ).map(AplicacaoPainel.fromJson).toList(),
       alertas = _maps(j['alertas']).map(AlertaPainel.fromJson).toList(),
       filtros = _maps(_map(j['filtros'])['descricao'])
-          .map((f) => (rotulo: '${f['rotulo'] ?? ''}', valor: '${f['valor'] ?? ''}'))
+          .map(
+            (f) =>
+                (rotulo: '${f['rotulo'] ?? ''}', valor: '${f['valor'] ?? ''}'),
+          )
           .toList();
 
   final ResumoPainel resumo;
@@ -231,7 +248,13 @@ class DadosPainel {
 }
 
 class ColunaImportacao {
-  const ColunaImportacao({required this.chave, required this.label, required this.obrigatoria, this.ajuda, this.exemplo});
+  const ColunaImportacao({
+    required this.chave,
+    required this.label,
+    required this.obrigatoria,
+    this.ajuda,
+    this.exemplo,
+  });
 
   final String chave;
   final String label;
@@ -273,7 +296,13 @@ class ResultadoImportacao {
       erros = _int(j['erros']),
       colunasIgnoradas = _strings(j['colunas_ignoradas']),
       linhas = _maps(j['linhas'])
-          .map((l) => (linha: _int(l['linha']), status: '${l['status']}', mensagem: '${l['mensagem'] ?? ''}'))
+          .map(
+            (l) => (
+              linha: _int(l['linha']),
+              status: '${l['status']}',
+              mensagem: '${l['mensagem'] ?? ''}',
+            ),
+          )
           .toList(),
       linhasTruncadas = j['linhas_truncadas'] == true;
 
@@ -296,15 +325,23 @@ class PainelRepository {
 
   final ApiClient api;
 
-  static final _download = Options(responseType: ResponseType.bytes, receiveTimeout: const Duration(minutes: 3));
+  static final _download = Options(
+    responseType: ResponseType.bytes,
+    receiveTimeout: const Duration(minutes: 3),
+  );
 
   Future<DadosPainel> painel(Map<String, String> filtros) async {
-    final response = await api.dio.get<Map<String, dynamic>>('/staff/painel', queryParameters: filtros);
+    final response = await api.dio.get<Map<String, dynamic>>(
+      '/staff/painel',
+      queryParameters: filtros,
+    );
     return DadosPainel.fromJson(_map(response.data?['data']));
   }
 
   Future<OpcoesRelatorio> opcoes() async {
-    final response = await api.dio.get<Map<String, dynamic>>('/staff/relatorios/opcoes');
+    final response = await api.dio.get<Map<String, dynamic>>(
+      '/staff/relatorios/opcoes',
+    );
     return OpcoesRelatorio.fromJson(_map(response.data?['data']));
   }
 
@@ -315,19 +352,28 @@ class PainelRepository {
   }) async {
     final response = await api.dio.get<List<int>>(
       '/staff/relatorios/exportar',
-      queryParameters: {...filtros, 'abas': abas.join(','), if (anonimizar) 'anonimizar': '1'},
+      queryParameters: {
+        ...filtros,
+        'abas': abas.join(','),
+        if (anonimizar) 'anonimizar': '1',
+      },
       options: _download,
     );
     return _arquivo(response, 'relatorio-vise.xlsx');
   }
 
   Future<List<TipoImportacao>> tiposImportacao() async {
-    final response = await api.dio.get<Map<String, dynamic>>('/staff/importacao');
+    final response = await api.dio.get<Map<String, dynamic>>(
+      '/staff/importacao',
+    );
     return _maps(response.data?['data']).map(TipoImportacao.fromJson).toList();
   }
 
   Future<ArquivoBaixado> modelo(String tipo) async {
-    final response = await api.dio.get<List<int>>('/staff/importacao/$tipo/modelo', options: _download);
+    final response = await api.dio.get<List<int>>(
+      '/staff/importacao/$tipo/modelo',
+      options: _download,
+    );
     return _arquivo(response, 'modelo-importacao-$tipo.xlsx');
   }
 
@@ -343,37 +389,60 @@ class PainelRepository {
         'arquivo': MultipartFile.fromBytes(bytes, filename: nomeArquivo),
         'simular': simular ? '1' : '0',
       }),
-      options: Options(sendTimeout: const Duration(minutes: 2), receiveTimeout: const Duration(minutes: 5)),
+      options: Options(
+        sendTimeout: const Duration(minutes: 2),
+        receiveTimeout: const Duration(minutes: 5),
+      ),
     );
     return ResultadoImportacao.fromJson(_map(response.data?['data']));
   }
 
   static ArquivoBaixado _arquivo(Response<List<int>> response, String padrao) {
     final bytes = Uint8List.fromList(response.data ?? const []);
-    return (bytes: bytes, nome: nomeDoArquivo(response.headers.value('content-disposition')) ?? padrao);
+    return (
+      bytes: bytes,
+      nome:
+          nomeDoArquivo(response.headers.value('content-disposition')) ??
+          padrao,
+    );
   }
 }
 
 /// Nome do arquivo no cabeçalho Content-Disposition (prefere o filename* UTF-8).
 String? nomeDoArquivo(String? disposition) {
   if (disposition == null) return null;
-  final utf8 = RegExp(r"filename\*=UTF-8''([^;]+)", caseSensitive: false).firstMatch(disposition);
+  final utf8 = RegExp(
+    r"filename\*=UTF-8''([^;]+)",
+    caseSensitive: false,
+  ).firstMatch(disposition);
   if (utf8 != null) return Uri.decodeComponent(utf8.group(1)!.trim());
-  final simples = RegExp(r'filename="?([^";]+)"?', caseSensitive: false).firstMatch(disposition);
+  final simples = RegExp(
+    r'filename="?([^";]+)"?',
+    caseSensitive: false,
+  ).firstMatch(disposition);
   return simples?.group(1)?.trim();
 }
 
-int _int(dynamic value) => value is int ? value : (value is num ? value.toInt() : int.tryParse('${value ?? ''}') ?? 0);
+int _int(dynamic value) => value is int
+    ? value
+    : (value is num ? value.toInt() : int.tryParse('${value ?? ''}') ?? 0);
 
-double? _double(dynamic value) => value is num ? value.toDouble() : double.tryParse('${value ?? ''}');
+double? _double(dynamic value) =>
+    value is num ? value.toDouble() : double.tryParse('${value ?? ''}');
 
-Map<String, dynamic> _map(dynamic value) => value is Map ? Map<String, dynamic>.from(value) : const {};
+Map<String, dynamic> _map(dynamic value) =>
+    value is Map ? Map<String, dynamic>.from(value) : const {};
 
-List<String> _strings(dynamic value) => value is Iterable ? value.map((e) => '${e ?? ''}').toList() : const [];
+List<String> _strings(dynamic value) =>
+    value is Iterable ? value.map((e) => '${e ?? ''}').toList() : const [];
 
-List<Map<String, dynamic>> _maps(dynamic value) =>
-    value is Iterable ? value.whereType<Map>().map(Map<String, dynamic>.from).toList() : const [];
+List<Map<String, dynamic>> _maps(dynamic value) => value is Iterable
+    ? value.whereType<Map>().map(Map<String, dynamic>.from).toList()
+    : const [];
 
-List<Opcao> _idNome(dynamic value) => _maps(value).map((m) => Opcao('${m['id']}', '${m['nome'] ?? ''}')).toList();
+List<Opcao> _idNome(dynamic value) =>
+    _maps(value).map((m) => Opcao('${m['id']}', '${m['nome'] ?? ''}')).toList();
 
-List<Opcao> _pares(dynamic value) => _maps(value).map((m) => Opcao('${m['valor']}', '${m['rotulo'] ?? ''}')).toList();
+List<Opcao> _pares(dynamic value) => _maps(
+  value,
+).map((m) => Opcao('${m['valor']}', '${m['rotulo'] ?? ''}')).toList();

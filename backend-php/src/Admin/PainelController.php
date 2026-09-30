@@ -38,36 +38,36 @@ final class PainelController
                 . '</div>';
         }
 
-        $participacao = $r['participacao'] ?? 0.0;
         $html .= '<div class="kpis">'
-            . self::kpi(number_format($r['alunos'], 0, ',', '.'), 'Alunos cadastrados', $r['turmas'] . ' turma(s) · ' . $r['escolas'] . ' escola(s)', '', Url::to('/admin/alunos'))
-            . self::kpi(self::pct($participacao), 'Participação', $r['participantes'] . ' de ' . $r['alunos'] . ' alunos concluíram', 'kpi-blue', null, $participacao)
-            . self::kpi((string) $r['concluidos'], 'Questionários concluídos', $r['em_andamento'] . ' em andamento' . ($r['ultima_conclusao'] ? ' · último em ' . Tempo::local($r['ultima_conclusao']) : ''), 'kpi-green')
+            . self::kpi(number_format($r['alunos'], 0, ',', '.'), 'Alunos cadastrados', $r['turmas'] . ' turma(s) · ' . $r['escolas'] . ' escola(s)', 'kpi-hero', Url::to('/admin/alunos'))
+            . self::kpi((string) $r['concluidos'], 'Questionários concluídos', $r['em_andamento'] . ' em andamento' . ($r['ultima_conclusao'] ? ' · último em ' . Tempo::local($r['ultima_conclusao'], 'd/m H:i') : ''), '')
             . self::kpi((string) $r['aplicacoes_ativas'], 'Aplicações ativas', 'Salas abertas agora', '', Url::to('/admin/aplicacoes'))
-            . self::kpi((string) $r['prioritarios'], 'Nível prioritário', 'Alunos com alguma categoria que pede intervenção', $r['prioritarios'] > 0 ? 'kpi-alto' : '', $r['prioritarios'] > 0 ? '#alertas' : null)
+            . self::kpi((string) $r['prioritarios'], 'Nível prioritário', 'Alunos que pedem intervenção', $r['prioritarios'] > 0 ? 'kpi-alto' : '', $r['prioritarios'] > 0 ? '#alertas' : null)
             . self::kpi((string) $r['atencao'], 'Nível de atenção', 'Alunos para acompanhar de perto', $r['atencao'] > 0 ? 'kpi-moderado' : '')
             . '</div>';
 
         $evolucao = $ind->evolucao();
-        $html .= '<div class="grid-2">'
-            . '<section class="card"><h3>Questionários concluídos por ' . ($evolucao['granularidade'] === 'dia' ? 'dia' : 'mês') . '</h3>'
+        $html .= '<div class="bento">'
+            . '<section class="card span-8"><div class="card-head"><h3>Questionários concluídos</h3><span class="pill">por ' . ($evolucao['granularidade'] === 'dia' ? 'dia' : 'mês') . '</span></div>'
             . self::grafico($evolucao['pontos']) . '</section>'
-            . '<section class="card"><h3>Níveis de atenção por categoria</h3>' . self::classificacaoHtml($ind->classificacao()) . '</section>'
+            . '<section class="card span-4"><div class="card-head"><h3>Participação</h3><span class="pill">' . View::e(FiltrosRelatorio::PERIODOS[$filtros->periodo] ?? 'Período escolhido') . '</span></div>'
+            . self::medidor($r) . '</section>'
+            . '<section class="card span-7"><div class="card-head"><h3>Níveis de atenção por categoria</h3></div>' . self::classificacaoHtml($ind->classificacao()) . '</section>'
+            . '<section class="card span-5"><div class="card-head"><h3>Aplicações ativas</h3><a class="btn btn-sm" href="' . View::e(Url::to('/admin/aplicacoes')) . '">Ver todas</a></div>'
+            . self::aplicacoesHtml($ind->aplicacoesAtivas(6)) . '</section>'
+            . '<section class="card span-7"><div class="card-head"><h3>Participação por turma</h3><span class="muted small">menor participação primeiro</span></div>'
+            . self::turmasHtml($ind->porTurma(), $filtros) . '</section>'
+            . '<section class="card span-5" id="alertas"><div class="card-head"><h3>Alertas recentes</h3><span class="badge badge-erro">nível prioritário</span></div>'
+            . self::alertasHtml($ind->alertas(8), $ctx) . '</section>'
             . '</div>';
-
-        $html .= '<div class="grid-2">'
-            . '<section class="card"><h3>Participação por turma <span class="muted small">(menor primeiro)</span></h3>' . self::turmasHtml($ind->porTurma(), $filtros) . '</section>'
-            . '<section class="card"><h3>Aplicações ativas</h3>' . self::aplicacoesHtml($ind->aplicacoesAtivas(8)) . '</section>'
-            . '</div>';
-
-        $html .= '<section class="card" id="alertas"><h3>Alertas recentes · nível prioritário</h3>' . self::alertasHtml($ind->alertas(10), $ctx) . '</section>';
         $html .= '<details class="card"><summary><strong>Resumo dos cadastros</strong></summary>' . self::cadastros($ctx) . '</details>';
 
-        $acoes = '<a class="btn btn-primary" href="' . View::e(Url::to('/admin/relatorios', $filtros->query())) . '">Gerar relatório</a>';
+        $acoes = '';
         if (ImportacaoService::tiposPermitidos($ctx) !== []) {
-            $acoes .= ' <a class="btn" href="' . View::e(Url::to('/admin/importar')) . '">Importar planilha</a>';
+            $acoes .= '<a class="btn btn-outline" href="' . View::e(Url::to('/admin/importar')) . '">' . View::icone('importar', 16) . 'Importar planilha</a>';
         }
-        return View::page($ctx, 'Painel', $html, 'dashboard', $acoes);
+        $acoes .= '<a class="btn btn-primary" href="' . View::e(Url::to('/admin/relatorios', $filtros->query())) . '">' . View::icone('relatorios', 16) . 'Gerar relatório</a>';
+        return View::page($ctx, 'Painel', $html, 'dashboard', $acoes, 200, 'Visão geral da participação e dos níveis de atenção dos alunos.');
     }
 
     public static function relatorios(Request $request): Response
@@ -89,18 +89,18 @@ final class PainelController
         }
         $form .= '</div><label class="check-line"><input type="checkbox" name="anonimizar" value="1"' . ($anonimizar ? ' checked' : '') . '> '
             . '<span><strong>Anonimizar alunos</strong> <small class="muted">troca nomes por códigos e remove CPF, matrícula e contatos — use para compartilhar com pesquisa ou secretaria.</small></span></label>'
-            . '<div class="form-actions"><button class="btn" type="submit">Atualizar prévia</button>'
-            . '<button class="btn btn-primary" type="submit" formaction="' . View::e(Url::to('/admin/relatorios/exportar')) . '">Baixar Excel (.xlsx)</button>'
-            . '<button class="btn" type="button" onclick="window.print()">Imprimir prévia</button></div></form>';
+            . '<div class="form-actions"><button class="btn btn-primary" type="submit" formaction="' . View::e(Url::to('/admin/relatorios/exportar')) . '">' . View::icone('baixar', 16) . 'Baixar Excel (.xlsx)</button>'
+            . '<button class="btn btn-outline" type="submit">Atualizar prévia</button>'
+            . '<button class="btn btn-outline" type="button" onclick="window.print()">Imprimir prévia</button></div></form>';
 
         $ind = new Indicadores($ctx, $filtros);
         $r = $ind->resumo();
         $chips = implode('', array_map(static fn ($f) => '<span class="chip">' . View::e($f[0]) . ': ' . View::e($f[1]) . '</span>', $filtros->descricao()));
         $previa = '<section class="card print-area"><h3>Prévia do relatório</h3><div class="filters">' . $chips . '</div>'
             . '<div class="kpis kpis-compact">'
-            . self::kpi((string) $r['alunos'], 'Alunos', $r['turmas'] . ' turma(s)', '')
-            . self::kpi(self::pct($r['participacao'] ?? 0.0), 'Participação', $r['participantes'] . ' concluíram', 'kpi-blue', null, $r['participacao'] ?? 0.0)
-            . self::kpi((string) $r['concluidos'], 'Concluídos', $r['em_andamento'] . ' em andamento', 'kpi-green')
+            . self::kpi((string) $r['alunos'], 'Alunos', $r['turmas'] . ' turma(s)', 'kpi-hero')
+            . self::kpi(self::pct($r['participacao'] ?? 0.0), 'Participação', $r['participantes'] . ' concluíram', '', null, $r['participacao'] ?? 0.0)
+            . self::kpi((string) $r['concluidos'], 'Concluídos', $r['em_andamento'] . ' em andamento', '')
             . self::kpi((string) $r['prioritarios'], 'Prioritário', 'alunos', $r['prioritarios'] > 0 ? 'kpi-alto' : '')
             . self::kpi((string) $r['atencao'], 'Atenção', 'alunos', $r['atencao'] > 0 ? 'kpi-moderado' : '')
             . '</div>'
@@ -108,7 +108,7 @@ final class PainelController
             . '<h4>Por turma</h4>' . self::turmasHtml($ind->porTurma(), $filtros, 0)
             . '</section>';
 
-        return View::page($ctx, 'Relatórios', $form . $previa, 'relatorios');
+        return View::page($ctx, 'Relatórios', $form . $previa, 'relatorios', '', 200, 'Escolha o recorte, confira a prévia e baixe a planilha em Excel.');
     }
 
     public static function exportar(Request $request): Response
@@ -243,12 +243,12 @@ final class PainelController
             . '<div class="field"><label for="arquivo">Planilha (.xlsx ou .csv)</label>'
             . '<input id="arquivo" type="file" name="arquivo" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" required>'
             . '<small>Até ' . number_format(ImportacaoService::LIMITE_LINHAS, 0, ',', '.') . ' linhas por arquivo. Arquivos .xls antigos: salve como .xlsx antes.</small></div>'
-            . '<div class="form-actions"><button class="btn" type="submit" name="modo" value="simular">Simular</button>'
-            . '<button class="btn btn-primary" type="submit" name="modo" value="importar">Importar</button></div></form>'
+            . '<div class="form-actions"><button class="btn btn-outline" type="submit" name="modo" value="simular">Simular</button>'
+            . '<button class="btn btn-primary" type="submit" name="modo" value="importar">' . View::icone('importar', 16) . 'Importar</button></div></form>'
             . '<section class="card"><h3>Colunas aceitas</h3><div class="table-wrap"><table class="compact"><thead><tr><th>Coluna</th><th>Campo</th><th>Regras</th><th>Exemplo</th></tr></thead><tbody>'
             . $colunas . '</tbody></table></div><p class="small muted"><span class="req">*</span> obrigatória. A ordem das colunas não importa.</p></section>'
             . '</div>';
-        return View::page($ctx, 'Importar planilha', $html, 'importar', '', $status);
+        return View::page($ctx, 'Importar planilha', $html, 'importar', '', $status, 'Cadastre em lote a partir de uma planilha .xlsx ou .csv.');
     }
 
     private static function tipoImportacao(Ctx $ctx, mixed $tipo): string
@@ -334,7 +334,8 @@ final class PainelController
     {
         $tag = $href === null ? 'div' : 'a';
         return '<' . $tag . ' class="kpi ' . $classe . '"' . ($href === null ? '' : ' href="' . View::e($href) . '"') . '>'
-            . '<span class="kpi-label">' . View::e($rotulo) . '</span>'
+            . '<span class="kpi-top"><span class="kpi-label">' . View::e($rotulo) . '</span>'
+            . ($href === null ? '' : '<span class="kpi-arrow">' . View::icone('seta', 16) . '</span>') . '</span>'
             . '<span class="kpi-value">' . View::e($valor) . '</span>'
             . ($progresso === null ? '' : self::barra($progresso))
             . '<span class="kpi-sub">' . View::e($sub) . '</span></' . $tag . '>';
@@ -358,29 +359,65 @@ final class PainelController
         if ($total === 0) {
             return '<p class="empty-state">Nenhum questionário concluído neste período.</p>';
         }
-        $max = max(1, ...array_column($pontos, 'valor'));
+        $valores = array_column($pontos, 'valor');
+        $max = max(1, ...$valores);
+        $maiorIndice = (int) array_search($max, $valores, true);
         $n = count($pontos);
         $largura = 640;
-        $altura = 200;
-        $base = 170;
+        $altura = 230;
+        $topo = 30;
+        $base = 196;
         $passo = $largura / $n;
-        $barra = max(2.0, $passo * 0.7);
-        $cadaRotulo = (int) max(1, ceil($n / 12));
-        $svg = '<svg class="chart" viewBox="0 0 ' . $largura . ' ' . $altura . '" role="img" aria-label="Questionários concluídos ao longo do tempo">';
-        foreach ([0.5, 1.0] as $guia) {
-            $y = $base - ($base - 16) * $guia;
-            $svg .= '<line x1="0" x2="' . $largura . '" y1="' . $y . '" y2="' . $y . '" class="guide"/><text x="2" y="' . ($y - 3) . '" class="axis">' . (int) round($max * $guia) . '</text>';
-        }
+        $barra = min(40.0, max(4.0, $passo * 0.62));
+        $raio = round($barra / 2, 1);
+        $cadaRotulo = (int) max(1, ceil($n / 10));
+        $svg = '<svg class="chart" viewBox="0 0 ' . $largura . ' ' . $altura . '" role="img" aria-label="Questionários concluídos ao longo do tempo">'
+            . '<defs><pattern id="hachuraBarras" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(45)">'
+            . '<rect width="7" height="7" fill="#f3f6f4"/><line x1="0" y1="0" x2="0" y2="7" stroke="#cdd8d1" stroke-width="2.4"/></pattern></defs>';
         foreach ($pontos as $i => $p) {
-            $h = $p['valor'] > 0 ? max(2, ($base - 16) * $p['valor'] / $max) : 0;
-            $x = $i * $passo + ($passo - $barra) / 2;
-            $svg .= '<rect x="' . round($x, 1) . '" y="' . round($base - $h, 1) . '" width="' . round($barra, 1) . '" height="' . round($h, 1) . '" rx="2"><title>'
-                . View::e($p['rotulo'] . ': ' . $p['valor'] . ' concluído(s)') . '</title></rect>';
+            $x = round($i * $passo + ($passo - $barra) / 2, 1);
+            $svg .= '<rect class="track" x="' . $x . '" y="' . $topo . '" width="' . round($barra, 1) . '" height="' . ($base - $topo) . '" rx="' . $raio . '"'
+                . ($p['valor'] === 0 ? ' fill="url(#hachuraBarras)"' : '') . '/>';
+            if ($p['valor'] > 0) {
+                $h = max($barra, ($base - $topo) * $p['valor'] / $max);
+                $y = round($base - $h, 1);
+                $svg .= '<rect class="bar' . ($i === $maiorIndice ? ' bar-max' : '') . '" x="' . $x . '" y="' . $y . '" width="' . round($barra, 1) . '" height="' . round($h, 1) . '" rx="' . $raio . '"><title>'
+                    . View::e($p['rotulo'] . ': ' . $p['valor'] . ' concluído(s)') . '</title></rect>';
+                if ($i === $maiorIndice) {
+                    $cx = round($i * $passo + $passo / 2, 1);
+                    $svg .= '<g class="bubble"><rect x="' . ($cx - 20) . '" y="' . ($y - 26) . '" width="40" height="20" rx="10"/>'
+                        . '<text x="' . $cx . '" y="' . ($y - 12) . '" text-anchor="middle">' . $p['valor'] . '</text></g>';
+                }
+            }
             if ($i % $cadaRotulo === 0) {
-                $svg .= '<text x="' . round($i * $passo + $passo / 2, 1) . '" y="190" class="axis" text-anchor="middle">' . View::e($p['rotulo']) . '</text>';
+                $cx = max(16.0, min($largura - 16.0, $i * $passo + $passo / 2));
+                $svg .= '<text x="' . round($cx, 1) . '" y="220" class="axis" text-anchor="middle">' . View::e($p['rotulo']) . '</text>';
             }
         }
-        return $svg . '</svg><p class="muted small">' . $total . ' conclusão(ões) no período · passe o mouse nas barras para ver o valor.</p>';
+        return $svg . '</svg><div class="chart-foot"><span><strong>' . $total . '</strong> conclusão(ões) no período</span>'
+            . '<span class="legend"><span><i class="lg-bar"></i>Concluídos</span><span><i class="lg-max"></i>Maior dia</span><span><i class="lg-vazio"></i>Sem conclusões</span></span></div>';
+    }
+
+    /** Medidor semicircular: alunos que concluíram × pendentes. */
+    private static function medidor(array $r): string
+    {
+        $p = max(0.0, min(1.0, (float) ($r['participacao'] ?? 0.0)));
+        $arco = 'M 24 112 A 86 86 0 0 1 196 112';
+        $svg = '<svg class="gauge" viewBox="0 0 220 128" role="img" aria-label="Participação ' . self::pct($p) . '">'
+            . '<defs><pattern id="hachuraMedidor" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(45)">'
+            . '<rect width="7" height="7" fill="#f3f6f4"/><line x1="0" y1="0" x2="0" y2="7" stroke="#cdd8d1" stroke-width="2.4"/></pattern></defs>'
+            . '<path d="' . $arco . '" class="gauge-track" stroke="url(#hachuraMedidor)"/>';
+        if ($p > 0) {
+            $svg .= '<path d="' . $arco . '" class="gauge-fill" pathLength="100" stroke-dasharray="' . number_format($p * 100, 2, '.', '') . ' 100"/>';
+        }
+        $svg .= '</svg>';
+        $pendentes = max(0, (int) $r['alunos'] - (int) $r['participantes']);
+        return '<div class="gauge-wrap">' . $svg . '<div class="gauge-center"><strong>' . self::pct($r['participacao'] ?? null) . '</strong><span>dos alunos concluíram</span></div></div>'
+            . '<div class="gauge-legend">'
+            . '<span><i class="lg-max"></i>Concluíram <strong>' . (int) $r['participantes'] . '</strong></span>'
+            . '<span><i class="lg-vazio"></i>Pendentes <strong>' . $pendentes . '</strong></span>'
+            . '<span><i class="lg-bar"></i>Respondendo <strong>' . (int) $r['em_andamento'] . '</strong></span>'
+            . '</div>';
     }
 
     /** @param list<array<string, mixed>> $categorias */
@@ -443,11 +480,13 @@ final class PainelController
         }
         $html = '<ul class="app-list">';
         foreach ($aplicacoes as $a) {
-            $html .= '<li><div class="app-head"><a href="' . View::e(Url::to('/admin/aplicacoes/' . $a['id'])) . '"><strong>' . View::e($a['questionario']) . '</strong></a>'
-                . ($a['codigo'] ? ' <code>' . View::e($a['codigo']) . '</code>' : '') . '</div>'
-                . '<div class="muted small">' . View::e($a['alvo'] . ' · ' . $a['escola']) . ($a['termina_em'] ? ' · até ' . View::e(Tempo::local($a['termina_em'])) : '') . '</div>'
-                . self::barra($a['progresso']) . '<div class="small">' . $a['concluidos'] . ' de ' . $a['alvo_total'] . ' concluíram'
-                . ($a['em_andamento'] > 0 ? ' · ' . $a['em_andamento'] . ' respondendo' : '') . '</div></li>';
+            $html .= '<li><span class="app-icon">' . View::icone('aplicacoes', 18) . '</span><div class="app-main">'
+                . '<div class="app-head"><a href="' . View::e(Url::to('/admin/aplicacoes/' . $a['id'])) . '"><strong>' . View::e($a['questionario']) . '</strong></a>'
+                . '<span class="app-pct">' . self::pct($a['progresso']) . '</span></div>'
+                . '<div class="muted small">' . View::e($a['alvo'] . ' · ' . $a['escola']) . ($a['codigo'] ? ' · sala <code>' . View::e($a['codigo']) . '</code>' : '')
+                . ($a['termina_em'] ? ' · até ' . View::e(Tempo::local($a['termina_em'], 'd/m H:i')) : '') . '</div>'
+                . self::barra($a['progresso']) . '<div class="small muted">' . $a['concluidos'] . ' de ' . $a['alvo_total'] . ' concluíram'
+                . ($a['em_andamento'] > 0 ? ' · ' . $a['em_andamento'] . ' respondendo' : '') . '</div></div></li>';
         }
         return $html . '</ul>';
     }
@@ -459,14 +498,16 @@ final class PainelController
             return '<p class="empty-state">Nenhum aluno em nível prioritário neste recorte. Configure o "Nível de atenção" nas <a href="'
                 . View::e(Url::to('/admin/regras')) . '">regras de classificação</a> para que os alertas apareçam.</p>';
         }
-        $html = '<div class="table-wrap"><table class="compact"><thead><tr><th>Aluno</th><th>Turma</th><th>Questionário</th><th>Categorias prioritárias</th><th>Concluído em</th><th></th></tr></thead><tbody>';
+        $html = '<ul class="people">';
         foreach ($alertas as $a) {
-            $html .= '<tr><td><strong>' . View::e($a['aluno']) . '</strong></td><td>' . View::e($a['turma'] ?? '—') . '<div class="muted small">' . View::e($a['escola']) . '</div></td>'
-                . '<td>' . View::e($a['questionario']) . '</td><td>' . implode(' ', array_map(static fn ($c) => '<span class="badge badge-erro">' . View::e($c) . '</span>', $a['categorias'])) . '</td>'
-                . '<td>' . View::e(Tempo::local($a['data'])) . '</td>'
-                . '<td>' . ($ctx->canAccess('resultado') ? '<a href="' . View::e(Url::to('/admin/resultados/' . $a['resultado_id'])) . '">Ver</a>' : '') . '</td></tr>';
+            $html .= '<li><span class="avatar avatar-alto">' . View::e(View::iniciais((string) $a['aluno'])) . '</span>'
+                . '<div class="people-main"><strong>' . View::e($a['aluno']) . '</strong>'
+                . '<span class="muted small">' . View::e(($a['turma'] ?? '—') . ' · ' . $a['escola'] . ' · ' . Tempo::local($a['data'], 'd/m H:i')) . '</span>'
+                . '<span class="tags">' . implode('', array_map(static fn ($c) => '<span class="badge badge-erro">' . View::e($c) . '</span>', $a['categorias'])) . '</span></div>'
+                . ($ctx->canAccess('resultado') ? '<a class="btn btn-sm" href="' . View::e(Url::to('/admin/resultados/' . $a['resultado_id'])) . '" title="' . View::e($a['questionario']) . '">Ver</a>' : '')
+                . '</li>';
         }
-        return $html . '</tbody></table></div><p class="muted small">Oriente o acolhimento conforme o protocolo da escola. Estes dados são sensíveis (LGPD).</p>';
+        return $html . '</ul><p class="muted small">Oriente o acolhimento conforme o protocolo da escola. Estes dados são sensíveis (LGPD).</p>';
     }
 
     private static function cadastros(Ctx $ctx): string

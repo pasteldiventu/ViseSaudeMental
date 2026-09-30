@@ -108,8 +108,20 @@ class _FakeApi implements HttpClientAdapter {
         {'id': 1, 'nome': 'Escola Demo'},
       ],
       'turmas': [
-        {'id': 7, 'nome': '6º Ano A', 'escola_id': 1, 'escola': 'Escola Demo', 'turno': 'matutino'},
-        {'id': 8, 'nome': '7º Ano B', 'escola_id': 1, 'escola': 'Escola Demo', 'turno': 'vespertino'},
+        {
+          'id': 7,
+          'nome': '6º Ano A',
+          'escola_id': 1,
+          'escola': 'Escola Demo',
+          'turno': 'matutino',
+        },
+        {
+          'id': 8,
+          'nome': '7º Ano B',
+          'escola_id': 1,
+          'escola': 'Escola Demo',
+          'turno': 'vespertino',
+        },
       ],
       'series': [
         {'id': 1, 'nome': '6º ano'},
@@ -127,9 +139,27 @@ class _FakeApi implements HttpClientAdapter {
         {'valor': 'personalizado', 'rotulo': 'Personalizado'},
       ],
       'abas': [
-        {'chave': 'resumo', 'rotulo': 'Resumo', 'descricao': 'Indicadores gerais', 'padrao': true, 'obrigatoria': true},
-        {'chave': 'turmas', 'rotulo': 'Por turma', 'descricao': 'Participação por turma', 'padrao': true, 'obrigatoria': false},
-        {'chave': 'respostas', 'rotulo': 'Respostas detalhadas', 'descricao': 'Uma linha por resposta', 'padrao': false, 'obrigatoria': false},
+        {
+          'chave': 'resumo',
+          'rotulo': 'Resumo',
+          'descricao': 'Indicadores gerais',
+          'padrao': true,
+          'obrigatoria': true,
+        },
+        {
+          'chave': 'turmas',
+          'rotulo': 'Por turma',
+          'descricao': 'Participação por turma',
+          'padrao': true,
+          'obrigatoria': false,
+        },
+        {
+          'chave': 'respostas',
+          'rotulo': 'Respostas detalhadas',
+          'descricao': 'Uma linha por resposta',
+          'padrao': false,
+          'obrigatoria': false,
+        },
       ],
     },
   };
@@ -141,7 +171,13 @@ class _FakeApi implements HttpClientAdapter {
         'label': 'Alunos',
         'descricao': 'Cadastra ou atualiza alunos pela matrícula.',
         'colunas': [
-          {'chave': 'nome', 'label': 'Nome', 'obrigatoria': true, 'ajuda': 'Nome completo', 'exemplo': 'Ana Lima'},
+          {
+            'chave': 'nome',
+            'label': 'Nome',
+            'obrigatoria': true,
+            'ajuda': 'Nome completo',
+            'exemplo': 'Ana Lima',
+          },
           {'chave': 'turma', 'label': 'Turma', 'obrigatoria': false},
         ],
       },
@@ -162,7 +198,11 @@ class _FakeApi implements HttpClientAdapter {
   }
 
   @override
-  Future<ResponseBody> fetch(RequestOptions options, Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
     chamadas.add(options.uri);
     final path = options.uri.path.replaceFirst('/api/v1', '');
     if (path == '/staff/relatorios/exportar' || path.endsWith('/modelo')) {
@@ -170,15 +210,23 @@ class _FakeApi implements HttpClientAdapter {
         [0x50, 0x4B, 0x03, 0x04],
         200,
         headers: {
-          Headers.contentTypeHeader: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
-          'content-disposition': ["attachment; filename=\"relatorio.xlsx\"; filename*=UTF-8''relat%C3%B3rio-vise.xlsx"],
+          Headers.contentTypeHeader: [
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          ],
+          'content-disposition': [
+            "attachment; filename=\"relatorio.xlsx\"; filename*=UTF-8''relat%C3%B3rio-vise.xlsx",
+          ],
         },
       );
     }
     final (status, body) = _responder(options);
-    return ResponseBody.fromString(jsonEncode(body), status, headers: {
-      Headers.contentTypeHeader: [Headers.jsonContentType],
-    });
+    return ResponseBody.fromString(
+      jsonEncode(body),
+      status,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
   }
 
   @override
@@ -194,10 +242,11 @@ Future<_FakeApi> _montar(WidgetTester tester, Size tamanho) async {
     ApiClient.staffTokenKey: 'token',
     ApiClient.sessionModeKey: 'staff',
   });
-  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockStreamHandler(
-    const EventChannel('dev.fluttercommunity.plus/connectivity_status'),
-    MockStreamHandler.inline(onListen: (_, _) {}),
-  );
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockStreamHandler(
+        const EventChannel('dev.fluttercommunity.plus/connectivity_status'),
+        MockStreamHandler.inline(onListen: (_, _) {}),
+      );
 
   final api = _FakeApi();
   final container = ProviderContainer(
@@ -218,7 +267,14 @@ Future<_FakeApi> _montar(WidgetTester tester, Size tamanho) async {
       name: 'Diretora Demo',
       email: 'admin.escola@vise.local',
       isSuperuser: false,
-      escolas: [StaffEscola(id: 1, nome: 'Escola Demo', role: 'admin_escola', roleLabel: 'Administrador da Escola')],
+      escolas: [
+        StaffEscola(
+          id: 1,
+          nome: 'Escola Demo',
+          role: 'admin_escola',
+          roleLabel: 'Administrador da Escola',
+        ),
+      ],
     );
 
   await tester.pumpWidget(
@@ -245,12 +301,19 @@ void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
 
   test('nome do arquivo prefere o filename* UTF-8', () {
-    expect(nomeDoArquivo("attachment; filename=\"a.xlsx\"; filename*=UTF-8''relat%C3%B3rio.xlsx"), 'relatório.xlsx');
+    expect(
+      nomeDoArquivo(
+        "attachment; filename=\"a.xlsx\"; filename*=UTF-8''relat%C3%B3rio.xlsx",
+      ),
+      'relatório.xlsx',
+    );
     expect(nomeDoArquivo('attachment; filename="modelo.xlsx"'), 'modelo.xlsx');
     expect(nomeDoArquivo(null), isNull);
   });
 
-  testWidgets('painel mostra indicadores e a turma abre o relatório filtrado', (tester) async {
+  testWidgets('painel mostra indicadores e a turma abre o relatório filtrado', (
+    tester,
+  ) async {
     final api = await _montar(tester, const Size(1280, 900));
 
     expect(find.text('Painel de indicadores'), findsOneWidget);
@@ -258,37 +321,66 @@ void main() {
     await tester.tap(find.text('Painel').first);
     await tester.pumpAndSettle();
 
-    expect(find.text('PAINEL'), findsOneWidget);
+    expect(find.widgetWithText(AppBar, 'Painel'), findsOneWidget);
     expect(find.text('63%'), findsOneWidget);
     expect(find.text('Ansiedade'), findsWidgets);
-    expect(api.chamadas.where((u) => u.path.endsWith('/staff/painel')).first.queryParameters['periodo'], '30');
+    expect(
+      api.chamadas
+          .where((u) => u.path.endsWith('/staff/painel'))
+          .first
+          .queryParameters['periodo'],
+      '30',
+    );
 
-    final rolagem = find.descendant(of: find.byType(PainelScreen), matching: find.byType(Scrollable)).first;
-    await tester.scrollUntilVisible(find.text('Maria Souza'), 300, scrollable: rolagem);
+    final rolagem = find
+        .descendant(
+          of: find.byType(PainelScreen),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    await tester.scrollUntilVisible(
+      find.text('Maria Souza'),
+      300,
+      scrollable: rolagem,
+    );
     expect(find.text('Maria Souza'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('6º Ano A').first, -300, scrollable: rolagem);
+    await tester.scrollUntilVisible(
+      find.text('6º Ano A').first,
+      -300,
+      scrollable: rolagem,
+    );
     await tester.tap(find.text('6º Ano A').first);
     await tester.pumpAndSettle();
 
-    expect(find.text('RELATÓRIOS'), findsOneWidget);
+    expect(find.widgetWithText(AppBar, 'Relatórios'), findsOneWidget);
     expect(find.text('6º Ano A'), findsOneWidget);
 
     await tester.tap(find.text('Respostas detalhadas'));
     await tester.scrollUntilVisible(
       find.text('Baixar relatório (.xlsx)'),
       200,
-      scrollable: find.descendant(of: find.byType(RelatoriosScreen), matching: find.byType(Scrollable)).first,
+      scrollable: find
+          .descendant(
+            of: find.byType(RelatoriosScreen),
+            matching: find.byType(Scrollable),
+          )
+          .first,
     );
     await tester.tap(find.text('Baixar relatório (.xlsx)'));
     await tester.pump();
     expect(find.text('Gerando…'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 500));
 
-    final exportar = api.chamadas.lastWhere((u) => u.path.endsWith('/staff/relatorios/exportar'));
+    final exportar = api.chamadas.lastWhere(
+      (u) => u.path.endsWith('/staff/relatorios/exportar'),
+    );
     expect(exportar.queryParameters['turma_id'], '7');
     expect(exportar.queryParameters['escola_id'], '1');
     expect(exportar.queryParameters['periodo'], '30');
-    expect(exportar.queryParameters['abas']!.split(','), containsAll(['resumo', 'turmas', 'respostas']));
+    expect(
+      exportar.queryParameters['abas']!.split(','),
+      containsAll(['resumo', 'turmas', 'respostas']),
+    );
     expect(exportar.queryParameters.containsKey('anonimizar'), isFalse);
   });
 
@@ -297,13 +389,21 @@ void main() {
     await tester.tap(find.text('Importar planilha'));
     await tester.pumpAndSettle();
 
-    expect(find.text('IMPORTAR PLANILHA'), findsOneWidget);
+    expect(find.widgetWithText(AppBar, 'Importar planilha'), findsOneWidget);
     expect(find.text('Importar alunos'), findsOneWidget);
     expect(find.text('Nome *'), findsOneWidget);
-    expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Importar')).onPressed, isNull);
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Importar'))
+          .onPressed,
+      isNull,
+    );
 
     await tester.tap(find.text('Baixar modelo'));
     await tester.pumpAndSettle();
-    expect(api.chamadas.map((u) => u.path), contains(endsWith('/staff/importacao/alunos/modelo')));
+    expect(
+      api.chamadas.map((u) => u.path),
+      contains(endsWith('/staff/importacao/alunos/modelo')),
+    );
   });
 }
