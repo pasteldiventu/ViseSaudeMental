@@ -7,8 +7,12 @@ class Env {
   /// (backend PHP; inclua a subpasta se houver, ex.: `/vise/api/v1`).
   static const _override = String.fromEnvironment('API_BASE_URL');
 
+  /// Servidor de produção, usado nos builds de release sem `API_BASE_URL`.
+  static const producao = 'https://visemt.com.br/api/api/v1';
+
   static String get baseUrl {
     if (_override.isNotEmpty) return _override;
+    if (kReleaseMode) return producao;
     if (kIsWeb) return 'http://localhost:8000/api/v1';
     // Emulador Android → host da máquina
     return 'http://10.0.2.2:8000/api/v1';

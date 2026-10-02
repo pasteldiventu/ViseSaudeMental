@@ -4,7 +4,10 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../data/repositories/cadastros_repository.dart';
+import '../../../data/repositories/staff_repository.dart';
 import '../../../providers/app_providers.dart';
+import '../compartilhar_sala.dart';
+import '../criar_sala_screen.dart';
 import 'cadastro_form_screen.dart';
 import 'cadastro_icons.dart';
 import 'cadastro_lista_screen.dart';
@@ -35,6 +38,14 @@ class _CadastroDetalheScreenState extends ConsumerState<CadastroDetalheScreen> {
   void initState() {
     super.initState();
     Future.microtask(_carregar);
+  }
+
+  Future<void> _liberarEmSala() async {
+    final sala = await Navigator.of(context).push<SalaResumo>(
+      MaterialPageRoute(builder: (_) => CriarSalaScreen(questionarioId: widget.id)),
+    );
+    if (sala == null || !mounted) return;
+    await mostrarCompartilharSala(context, sala);
   }
 
   Future<void> _carregar() async {
@@ -208,6 +219,14 @@ class _CadastroDetalheScreenState extends ConsumerState<CadastroDetalheScreen> {
                       height: 1.2,
                     ),
                   ),
+                  if (widget.cadastroKey == 'questionarios') ...[
+                    const SizedBox(height: 14),
+                    FilledButton.icon(
+                      onPressed: _ocupado ? null : _liberarEmSala,
+                      icon: const Icon(Icons.ios_share_rounded),
+                      label: const Text('Liberar em sala e enviar link'),
+                    ),
+                  ],
                   if (registro.acoes.isNotEmpty) ...[
                     const SizedBox(height: 14),
                     Wrap(

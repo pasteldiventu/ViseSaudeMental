@@ -19,6 +19,24 @@ final class QuestionarioService
         Db::update('questionarios', ['status' => 'publicado'], $questionarioId);
     }
 
+    public static function totalPerguntas(int $questionarioId): int
+    {
+        return (int) Db::value(
+            'SELECT COUNT(p.id) FROM perguntas p
+             JOIN categorias c ON c.id = p.categoria_id
+             WHERE c.questionario_id = ? AND p.deleted_at IS NULL AND c.deleted_at IS NULL',
+            [$questionarioId]
+        );
+    }
+
+    /** Sala sem perguntas deixaria o aluno numa tela vazia. */
+    public static function exigirPerguntas(int $questionarioId): void
+    {
+        if (self::totalPerguntas($questionarioId) === 0) {
+            throw new HttpError(422, 'Este questionário ainda não tem perguntas. Cadastre ao menos uma pergunta antes de liberar a sala.');
+        }
+    }
+
     /** Copia o questionário publicado (categorias, subcategorias, perguntas, opções e regras) como rascunho v+1. */
     public static function criarNovaVersao(int $questionarioId): int
     {

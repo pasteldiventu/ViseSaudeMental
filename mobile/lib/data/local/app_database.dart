@@ -28,8 +28,17 @@ class AppDatabase extends _$AppDatabase {
         ),
       );
 
+  AppDatabase.conectar(super.executor);
+
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onUpgrade: (m, from, to) async {
+      if (from < 2) await m.alterTable(TableMigration(cachedCategoria));
+    },
+  );
 
   Future<List<CachedAplicacaoData>> listarAplicacoes() =>
       (select(cachedAplicacao)..orderBy([(t) => OrderingTerm.asc(t.id)])).get();
@@ -113,8 +122,8 @@ class AppDatabase extends _$AppDatabase {
     await into(cachedAplicacao).insertOnConflictUpdate(aplicacao);
     await batch((batch) {
       batch.insertAll(cachedCategoria, categorias);
-      batch.insertAll(cachedPergunta, perguntas);
-      batch.insertAll(cachedOpcao, opcoes);
+      batch.insertAll(cachedPergunta, perguntas, mode: InsertMode.insertOrReplace);
+      batch.insertAll(cachedOpcao, opcoes, mode: InsertMode.insertOrReplace);
     });
   });
 

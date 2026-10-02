@@ -8,7 +8,10 @@ import '../../data/repositories/staff_repository.dart';
 import '../../providers/app_providers.dart';
 
 class CriarSalaScreen extends ConsumerStatefulWidget {
-  const CriarSalaScreen({super.key});
+  const CriarSalaScreen({super.key, this.questionarioId});
+
+  /// Questionário já escolhido (ao liberar a partir do detalhe dele).
+  final int? questionarioId;
 
   @override
   ConsumerState<CriarSalaScreen> createState() => _CriarSalaScreenState();
@@ -41,11 +44,16 @@ class _CriarSalaScreenState extends ConsumerState<CriarSalaScreen> {
       final qs = await repo.listarQuestionarios(escolaId: escolaId);
       final turmas = await repo.listarTurmas(escolaId: escolaId);
       if (!mounted) return;
+      final pedido = widget.questionarioId;
+      final publicado = pedido != null && qs.any((q) => q.id == pedido);
       setState(() {
         _escolaId = escolaId ?? (qs.isNotEmpty ? qs.first.escolaId : null);
         _questionarios = qs;
         _turmas = turmas;
-        _questionarioId = qs.isNotEmpty ? qs.first.id : null;
+        _questionarioId = publicado ? pedido : (qs.isNotEmpty ? qs.first.id : null);
+        if (pedido != null && !publicado) {
+          _erro = 'Este questionário ainda não está publicado. Publique-o (no detalhe do questionário) para liberar em uma sala.';
+        }
         _turmaId = turmas.isNotEmpty ? turmas.first.id : null;
         if (turmas.isEmpty) _alvo = 'escola';
         _loading = false;

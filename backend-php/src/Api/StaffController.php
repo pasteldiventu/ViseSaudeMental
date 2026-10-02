@@ -14,6 +14,7 @@ use Vise\Roles;
 use Vise\Security\Jwt;
 use Vise\Security\Password;
 use Vise\Services\CodigoSala;
+use Vise\Services\QuestionarioService;
 use Vise\Support\Str;
 
 /** API do app de equipe (admin da escola, pesquisador, professor). */
@@ -187,6 +188,7 @@ final class StaffController
         ) {
             throw new HttpError(403, 'Você só pode liberar seus questionários ou os compartilhados.');
         }
+        QuestionarioService::exigirPerguntas($questionarioId);
 
         $professorSemAdmin = in_array(Roles::PROFESSOR, $roles, true) && !$adminEscola;
         $turmaAlvo = null;

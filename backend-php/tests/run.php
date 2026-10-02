@@ -382,6 +382,13 @@ $testes['cadastros pelo app: pesquisador monta questionário e libera sala'] = f
     $qid = (int) ($q['json']['id'] ?? 0);
     T::eq((int) Db::value("SELECT id FROM users WHERE email = 'pesquisador@vise.local'"), (int) Db::value('SELECT pesquisador_id FROM questionarios WHERE id = ?', [$qid]), 'dono é o pesquisador');
 
+    $semPerguntas = T::http('POST', '/api/v1/staff/cadastros/questionarios', ['nome' => 'Sem perguntas', 'escola_id' => $escola, 'status' => 'rascunho', 'versao' => 1, 'compartilhado_na_escola' => false], $h);
+    $vazioId = (int) ($semPerguntas['json']['id'] ?? 0);
+    T::http('POST', '/api/v1/staff/cadastros/questionarios/acoes/publicar', ['ids' => [$vazioId]], $h);
+    $salaVazia = T::http('POST', '/api/v1/staff/salas', ['questionario_id' => $vazioId, 'escola_id' => $escola, 'alvo_tipo' => 'escola'], $h);
+    T::eq(422, $salaVazia['status'], 'sala exige perguntas: ' . $salaVazia['body']);
+    T::check(str_contains((string) ($salaVazia['json']['detail'] ?? ''), 'ainda não tem perguntas'), 'mensagem de sala sem perguntas');
+
     $vazio = T::http('POST', '/api/v1/staff/cadastros/categorias', ['questionario_id' => $qid, 'nome' => ''], $h);
     T::eq(422, $vazio['status'], 'validação');
     T::eq('Preencha o campo Nome.', $vazio['json']['detail'] ?? null, 'mensagem de validação');

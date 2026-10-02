@@ -21,8 +21,9 @@ class CachedCategoria extends Table {
   TextColumn get imagemLocal => text().nullable()();
   IntColumn get ordem => integer().withDefault(const Constant(0))();
 
+  /// A mesma categoria aparece em cada sala (aplicação) do questionário.
   @override
-  Set<Column> get primaryKey => {id};
+  Set<Column> get primaryKey => {aplicacaoId, id};
 }
 
 class CachedPergunta extends Table {

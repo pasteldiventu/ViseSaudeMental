@@ -22,6 +22,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   DateTime? _nascimento;
 
   @override
+  void initState() {
+    super.initState();
+    ref.read(appControllerProvider).limparErro();
+  }
+
+  @override
   void dispose() {
     _cpf.dispose();
     _birthDate.dispose();

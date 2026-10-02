@@ -258,13 +258,15 @@ class AppController extends ChangeNotifier {
       codigoSalaPendente = null;
       await abrirAplicacao(id);
       return true;
-    } on DioException catch (error) {
+    } on DioException catch (error, stack) {
+      debugPrint('Falha ao entrar na sala: $error\n$stack');
       erro = error.response?.statusCode == 404
           ? 'Sala não encontrada ou você não faz parte do público.'
-          : 'Não foi possível entrar na sala.';
+          : mensagemDeErro(error, 'Não foi possível entrar na sala. Verifique a conexão.');
       return false;
-    } catch (_) {
-      erro = 'Não foi possível entrar na sala.';
+    } catch (error, stack) {
+      debugPrint('Falha ao entrar na sala: $error\n$stack');
+      erro = 'Não foi possível abrir a sala neste aparelho. Tente novamente.';
       return false;
     } finally {
       carregando = false;
@@ -285,8 +287,13 @@ class AppController extends ChangeNotifier {
     termoAceito = false;
     avatarIntroduzido = false;
     aplicacaoId = null;
+    codigoSalaPendente = null;
+    erro = null;
     notifyListeners();
   }
+
+  /// Chamado ao abrir uma tela de login, para não exibir erro de outra área.
+  void limparErro() => erro = null;
 
   Future<void> registrarTermoAceito() async {
     final alunoId = await auth.alunoId;

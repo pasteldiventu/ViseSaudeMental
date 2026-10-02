@@ -47,7 +47,7 @@ class QuizRepository {
         );
         categorias.add(
           CachedCategoriaCompanion.insert(
-            id: Value(categoryId),
+            id: categoryId,
             aplicacaoId: appId,
             titulo: _text(
               categoria['titulo'] ?? categoria['nome'],

@@ -414,6 +414,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Conteúdo'), findsOneWidget);
     expect(find.textContaining('Humor'), findsOneWidget);
+    expect(find.text('Liberar em sala e enviar link'), findsOneWidget);
 
     await tester.tap(find.text('Publicar'));
     await tester.pumpAndSettle();

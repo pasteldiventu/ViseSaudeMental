@@ -333,7 +333,7 @@ class $CachedCategoriaTable extends CachedCategoria
     aliasedName,
     false,
     type: DriftSqlType.int,
-    requiredDuringInsert: false,
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _aplicacaoIdMeta = const VerificationMeta(
     'aplicacaoId',
@@ -422,6 +422,8 @@ class $CachedCategoriaTable extends CachedCategoria
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
     }
     if (data.containsKey('aplicacao_id')) {
       context.handle(
@@ -476,7 +478,7 @@ class $CachedCategoriaTable extends CachedCategoria
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => {id};
+  Set<GeneratedColumn> get $primaryKey => {aplicacaoId, id};
   @override
   CachedCategoriaData map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
@@ -684,6 +686,7 @@ class CachedCategoriaCompanion extends UpdateCompanion<CachedCategoriaData> {
   final Value<String?> imagemUrl;
   final Value<String?> imagemLocal;
   final Value<int> ordem;
+  final Value<int> rowid;
   const CachedCategoriaCompanion({
     this.id = const Value.absent(),
     this.aplicacaoId = const Value.absent(),
@@ -692,16 +695,19 @@ class CachedCategoriaCompanion extends UpdateCompanion<CachedCategoriaData> {
     this.imagemUrl = const Value.absent(),
     this.imagemLocal = const Value.absent(),
     this.ordem = const Value.absent(),
+    this.rowid = const Value.absent(),
   });
   CachedCategoriaCompanion.insert({
-    this.id = const Value.absent(),
+    required int id,
     required int aplicacaoId,
     required String titulo,
     this.mensagemAvatar = const Value.absent(),
     this.imagemUrl = const Value.absent(),
     this.imagemLocal = const Value.absent(),
     this.ordem = const Value.absent(),
-  }) : aplicacaoId = Value(aplicacaoId),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       aplicacaoId = Value(aplicacaoId),
        titulo = Value(titulo);
   static Insertable<CachedCategoriaData> custom({
     Expression<int>? id,
@@ -711,6 +717,7 @@ class CachedCategoriaCompanion extends UpdateCompanion<CachedCategoriaData> {
     Expression<String>? imagemUrl,
     Expression<String>? imagemLocal,
     Expression<int>? ordem,
+    Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -720,6 +727,7 @@ class CachedCategoriaCompanion extends UpdateCompanion<CachedCategoriaData> {
       if (imagemUrl != null) 'imagem_url': imagemUrl,
       if (imagemLocal != null) 'imagem_local': imagemLocal,
       if (ordem != null) 'ordem': ordem,
+      if (rowid != null) 'rowid': rowid,
     });
   }
 
@@ -731,6 +739,7 @@ class CachedCategoriaCompanion extends UpdateCompanion<CachedCategoriaData> {
     Value<String?>? imagemUrl,
     Value<String?>? imagemLocal,
     Value<int>? ordem,
+    Value<int>? rowid,
   }) {
     return CachedCategoriaCompanion(
       id: id ?? this.id,
@@ -740,6 +749,7 @@ class CachedCategoriaCompanion extends UpdateCompanion<CachedCategoriaData> {
       imagemUrl: imagemUrl ?? this.imagemUrl,
       imagemLocal: imagemLocal ?? this.imagemLocal,
       ordem: ordem ?? this.ordem,
+      rowid: rowid ?? this.rowid,
     );
   }
 
@@ -767,6 +777,9 @@ class CachedCategoriaCompanion extends UpdateCompanion<CachedCategoriaData> {
     if (ordem.present) {
       map['ordem'] = Variable<int>(ordem.value);
     }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
     return map;
   }
 
@@ -779,7 +792,8 @@ class CachedCategoriaCompanion extends UpdateCompanion<CachedCategoriaData> {
           ..write('mensagemAvatar: $mensagemAvatar, ')
           ..write('imagemUrl: $imagemUrl, ')
           ..write('imagemLocal: $imagemLocal, ')
-          ..write('ordem: $ordem')
+          ..write('ordem: $ordem, ')
+          ..write('rowid: $rowid')
           ..write(')'))
         .toString();
   }
@@ -2678,13 +2692,14 @@ typedef $$CachedAplicacaoTableProcessedTableManager =
     >;
 typedef $$CachedCategoriaTableCreateCompanionBuilder =
     CachedCategoriaCompanion Function({
-      Value<int> id,
+      required int id,
       required int aplicacaoId,
       required String titulo,
       Value<String?> mensagemAvatar,
       Value<String?> imagemUrl,
       Value<String?> imagemLocal,
       Value<int> ordem,
+      Value<int> rowid,
     });
 typedef $$CachedCategoriaTableUpdateCompanionBuilder =
     CachedCategoriaCompanion Function({
@@ -2695,6 +2710,7 @@ typedef $$CachedCategoriaTableUpdateCompanionBuilder =
       Value<String?> imagemUrl,
       Value<String?> imagemLocal,
       Value<int> ordem,
+      Value<int> rowid,
     });
 
 class $$CachedCategoriaTableFilterComposer
@@ -2868,6 +2884,7 @@ class $$CachedCategoriaTableTableManager
                 Value<String?> imagemUrl = const Value.absent(),
                 Value<String?> imagemLocal = const Value.absent(),
                 Value<int> ordem = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
               }) => CachedCategoriaCompanion(
                 id: id,
                 aplicacaoId: aplicacaoId,
@@ -2876,16 +2893,18 @@ class $$CachedCategoriaTableTableManager
                 imagemUrl: imagemUrl,
                 imagemLocal: imagemLocal,
                 ordem: ordem,
+                rowid: rowid,
               ),
           createCompanionCallback:
               ({
-                Value<int> id = const Value.absent(),
+                required int id,
                 required int aplicacaoId,
                 required String titulo,
                 Value<String?> mensagemAvatar = const Value.absent(),
                 Value<String?> imagemUrl = const Value.absent(),
                 Value<String?> imagemLocal = const Value.absent(),
                 Value<int> ordem = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
               }) => CachedCategoriaCompanion.insert(
                 id: id,
                 aplicacaoId: aplicacaoId,
@@ -2894,6 +2913,7 @@ class $$CachedCategoriaTableTableManager
                 imagemUrl: imagemUrl,
                 imagemLocal: imagemLocal,
                 ordem: ordem,
+                rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

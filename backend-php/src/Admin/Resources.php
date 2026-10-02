@@ -532,6 +532,9 @@ final class Resources
                     }
                     self::exigirMesmaEscola('turmas', $data['turma_id'] ?? null, $escola, 'A turma não pertence à escola escolhida.');
                     self::exigirMesmaEscola('alunos', $data['aluno_id'] ?? null, $escola, 'O aluno não pertence à escola escolhida.');
+                    if ($data['status'] === 'ativa' && QuestionarioService::totalPerguntas((int) $data['questionario_id']) === 0) {
+                        throw new FormError('Este questionário ainda não tem perguntas. Cadastre ao menos uma pergunta antes de liberar a aplicação.');
+                    }
                     $codigo = preg_replace('/[^A-Z0-9]/', '', strtoupper((string) ($data['codigo_sala'] ?? '')));
                     $data['codigo_sala'] = $codigo === '' ? CodigoSala::gerar() : $codigo;
                 },

@@ -20,6 +20,12 @@ class _StaffLoginScreenState extends ConsumerState<StaffLoginScreen> {
   bool _obscure = true;
 
   @override
+  void initState() {
+    super.initState();
+    ref.read(appControllerProvider).limparErro();
+  }
+
+  @override
   void dispose() {
     _email.dispose();
     _password.dispose();
