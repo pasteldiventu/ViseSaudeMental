@@ -1,21 +1,74 @@
-# Vise Saúde Mental
+# Vise Saúde Mental (VISE-MT)
 
-Monorepo: **PHP puro + MySQL** (`backend-php/`: API `/api/v1` + painel `/admin`) e **Flutter** local-first (`mobile/`) — Android + **Web**.
+Sistema de triagem de saúde mental em escolas. O **aluno** responde questionários lúdicos (com avatar) no celular ou no navegador, mesmo sem internet; a **equipe** (administradores, pesquisadores e professores) monta os questionários, libera salas por código/link e acompanha indicadores, níveis de atenção e relatórios em Excel.
 
-> O antigo backend FastAPI (`backend/`) foi mantido só como referência; o backend oficial é o `backend-php/`, com o mesmo contrato de API e o mesmo esquema de banco (um banco criado pelo Python funciona sem migração de dados).
+| Parte | Pasta | Tecnologia |
+|---|---|---|
+| Backend: API REST + painel web (CMS) | [`backend-php/`](backend-php) | PHP 8 puro (sem Composer/framework) + MySQL |
+| App do aluno e da equipe (Android + Web) | [`mobile/`](mobile) | Flutter, Riverpod, Dio, Drift (SQLite/IndexedDB) |
+| Documentação | [`docs/`](docs) | OpenAPI, sprints, spec de produto, Shorebird |
 
-## Subir o backend (Docker)
+**Produção:** painel em <https://visemt.com.br/api/admin> · API em `https://visemt.com.br/api/api/v1` (o backend está na subpasta `/api` do domínio). O APK de release já aponta para esse endereço.
+
+## Estrutura
+
+```text
+backend-php/
+  index.php            ponto de entrada (roteamento via .htaccess)
+  src/Api/             API do aluno (/api/v1) e da equipe (/api/v1/staff)
+  src/Admin/           painel /admin: login, CRUD genérico (Resources.php), dashboard, relatórios, importação
+  src/Services/        regras de negócio: resultados, indicadores, relatório Excel, importação, códigos de sala
+  src/Support/         utilitários: leitura/escrita de XLSX e ZIP sem dependências, datas, textos
+  src/Install/         instalador (schema), dados demo, importação do sistema anterior
+  src/Security/        JWT da equipe, tokens do aluno, senhas bcrypt
+  database/schema.sql  esquema completo (idempotente)
+  bin/                 install.php, importar-legado.php (linha de comando)
+  static/              CSS e logo do painel
+  tests/run.php        testes de integração contra um MySQL real
+mobile/
+  lib/core/            configuração (URL da API), cliente HTTP, tema, Shorebird
+  lib/data/            banco local (Drift) e repositórios (auth, quiz, sync, staff, cadastros, painel)
+  lib/features/        telas: entrada, login, termo, avatar, categorias, perguntas, área da equipe
+  lib/providers/       estado do app (AppController)
+  test/                testes de widget e de repositório
+docs/                  openapi.yaml, SPRINTS.md, Doc_Refatoracao_SMD.pdf, shorebird.md, alunos_exemplo.csv
+docker-compose.yml     MySQL 8 + PHP 8.2/Apache para desenvolvimento
+```
+
+## Domínio e perfis
+
+- **Escola** é o tenant. Usuários da equipe têm vínculo (`escola_user`) com uma ou mais escolas e só enxergam dados delas.
+- **Instrumento:** questionário → categorias → subcategorias → perguntas (múltipla escolha ou texto livre) → opções com pontuação. **Regras de classificação** por categoria transformam a soma em rótulo + nível de atenção (*Adequado*, *Atenção*, *Prioritário*).
+- **Aplicação (sala):** libera um questionário para a escola toda, uma turma ou um aluno, com **código de sala** e link `/?sala=CODIGO`.
+- O aluno **nunca** recebe pontuação nem classificação pela API.
+
+| Perfil | O que faz |
+|---|---|
+| Admin geral (`is_superuser`) | Tudo, em todas as escolas; cadastra escolas; importação de escolas |
+| Admin da escola | Equipe, séries, turmas, alunos, aplicações e avatares da escola; vê questionários e resultados |
+| Pesquisador | Monta questionários (categorias, perguntas, opções, regras), publica, cria versões e libera salas; vê os próprios questionários e os compartilhados na escola |
+| Professor | Consulta as turmas ligadas a ele, os alunos, as aplicações e os resultados |
+| Aluno | Entra no app com **CPF + data de nascimento** (cadastrados pela equipe no painel, no app ou por planilha) |
+
+## Fluxos
+
+**Aluno** (app, Android ou web): *Sou aluno* → CPF + nascimento → aceite do termo → lista de questionários ou código da sala → apresentação do avatar → categorias → perguntas. As respostas ficam no aparelho (SQLite; IndexedDB na web) e são enviadas em lote quando há conexão; ao concluir, o servidor calcula o resultado. Sem internet, o aluno continua respondendo o que já foi baixado.
+
+**Equipe** (app ou painel web): *Sou da equipe* → e-mail/senha → **Salas** (criar sala, copiar/compartilhar link, encerrar), **Painel**, **Relatórios**, **Importar planilha** e os **cadastros** permitidos ao perfil. No detalhe de um questionário publicado há o atalho **Liberar em sala e enviar link**.
+
+## Rodar localmente
+
+### Com Docker
 
 ```bash
-cd ViseSaudeMental
 docker compose up --build -d
 ```
 
-O container (PHP 8.2 + Apache) aguarda o MySQL, cria/atualiza as tabelas, roda o seed de demonstração e atende na porta **8000**.
+O container (PHP 8.2 + Apache) espera o MySQL, cria/atualiza as tabelas, roda o seed de demonstração e atende em **http://localhost:8000**. O MySQL fica publicado na porta **3307**.
 
-> No Windows, se a porta `3306` estiver ocupada por um MySQL local, o Compose publica o MySQL do Docker em **`3307`**.
+### Sem Docker
 
-Sem Docker (PHP 8.0+ com `pdo_mysql` e um MySQL disponível):
+PHP 8.0+ com `pdo_mysql` e um MySQL 5.7+/MariaDB 10.3+:
 
 ```bash
 cd backend-php
@@ -27,168 +80,115 @@ php -S 0.0.0.0:8000 index.php
 | Recurso | URL / dado |
 |---|---|
 | Health | http://localhost:8000/up |
-| Painel (CMS) | http://localhost:8000/admin |
-| API aluno | http://localhost:8000/api/v1 |
-| Admin geral | `admin@vise.local` / `password` (acesso total) |
+| Painel | http://localhost:8000/admin |
+| API | http://localhost:8000/api/v1 |
+| Admin geral | `admin@vise.local` / `password` |
 | Admin escola | `admin.escola@vise.local` / `password` |
 | Pesquisador | `pesquisador@vise.local` / `password` |
 | Professor | `professor@vise.local` / `password` |
 | Aluno demo | CPF `07593256189` · nascimento `2009-10-21` |
 
-### App Flutter — aluno e equipe
+Outras opções do instalador:
 
-O mesmo app serve **aluno** e **equipe** (admin / pesquisador / professor):
+```bash
+php bin/install.php --admin=voce@escola.br --password=senhaForte123   # cria/atualiza admin geral
+php bin/install.php --seed --seed-respostas=80                        # turmas, alunos e respostas fictícias (só demo)
+```
 
-1. Na abertura: escolha **Sou aluno** ou **Sou da equipe**
-2. Equipe: login e-mail/senha → **Nova sala** → gera **código + link** (`/?sala=CODIGO`)
-3. Aluno: após login, usa o código na home ou abre o link compartilhado
+### App Flutter
 
 ```bash
 cd mobile
 flutter pub get
-flutter run -d web-server --web-port=8081 \
-  --dart-define=API_BASE_URL=http://localhost:8000/api/v1
+flutter run -d chrome                                   # web, API em http://localhost:8000/api/v1
+flutter run                                             # Android; o emulador usa http://10.0.2.2:8000/api/v1
+flutter run --dart-define=API_BASE_URL=http://SEU_IP:8000/api/v1   # aparelho físico
 ```
 
-API staff: `POST /api/v1/staff/login`, `GET/POST /api/v1/staff/salas`, `POST /api/v1/aplicacoes/entrar-com-codigo`.
+URL da API (`lib/core/config/env.dart`): `--dart-define=API_BASE_URL=...` tem prioridade; sem ele, **builds de release usam a produção** (`https://visemt.com.br/api/api/v1`) e o modo debug usa o backend local.
 
+## Build e deploy
 
-### Comandos úteis
+### App
 
 ```bash
-docker compose logs -f app
-docker compose exec app php bin/install.php --admin=voce@escola.br --password=senhaForte123
-# testes de integração (APAGAM as tabelas do banco informado — use um banco só para testes)
-TEST_DB_HOST=127.0.0.1 TEST_DB_PORT=3307 TEST_DB_NAME=vise_test TEST_DB_USER=root TEST_DB_PASSWORD=root \
-  php backend-php/tests/run.php
+cd mobile
+flutter build apk --release        # APK em build/app/outputs/flutter-apk/app-release.apk (aponta para a produção)
+flutter build web --release        # site estático em build/web
+# outro servidor: acrescente --dart-define=API_BASE_URL=https://seu-dominio/api/v1
 ```
 
-## Deploy em servidor PHP (hospedagem compartilhada, cPanel, VPS)
+Atualizações OTA do código Dart no Android via **Shorebird**: ver [`docs/shorebird.md`](docs/shorebird.md) e [`mobile/README.md`](mobile/README.md).
 
-Requisitos: **PHP 8.0+** com `pdo_mysql` (padrão em quase todas as hospedagens) e **MySQL 5.7+ / MariaDB 10.3+**. Não usa Composer nem framework.
+### Backend em servidor PHP (hospedagem compartilhada, cPanel, VPS)
 
-1. Crie o banco MySQL (utf8mb4) e o usuário no painel da hospedagem.
-2. Envie o **conteúdo** de `backend-php/` para a pasta pública (ex.: `public_html/` ou `public_html/vise/`). Os arquivos `.htaccess` fazem parte do deploy.
-3. Copie `.env.example` para `.env` e preencha `DB_*`, uma `SECRET_KEY` longa, `PUBLIC_APP_URL` (endereço do app web, usado no link das salas) e `CORS_ORIGINS`.
-4. Crie as tabelas de um destes jeitos:
-   - **Instalador web:** coloque um valor em `INSTALL_KEY` no `.env`, abra `https://seu-dominio/install`, informe a chave, o e-mail/senha do admin geral e (opcional) os dados demo. Depois **apague o `INSTALL_KEY`**.
-   - **phpMyAdmin:** importe `database/schema.sql` e crie o admin via SSH com `php bin/install.php --admin=... --password=...`.
-5. Teste `https://seu-dominio/up` → `{"status":"ok"}` e entre em `https://seu-dominio/admin`.
+1. Crie o banco MySQL (utf8mb4) e o usuário.
+2. Envie o **conteúdo** de `backend-php/` para a pasta pública (ex.: `public_html/api/`). Os arquivos `.htaccess` fazem parte do deploy.
+3. Copie `.env.example` para `.env` e preencha `DB_*`, uma `SECRET_KEY` longa, `PUBLIC_APP_URL` (endereço do app web, usado no link das salas), `CORS_ORIGINS` e `APP_TIMEZONE` (padrão `America/Cuiaba`).
+4. Crie as tabelas:
+   - **Instalador web:** defina `INSTALL_KEY` no `.env`, abra `https://seu-dominio/install`, informe a chave, o admin geral e (opcional) os dados demo. Depois **apague o `INSTALL_KEY`**.
+   - **SSH:** `php bin/install.php --admin=... --password=...`.
+5. Teste `https://seu-dominio/up` → `{"status":"ok"}` e entre em `/admin`.
+
+**Atualizar uma instalação existente:** substitua as pastas `src/`, `static/`, `database/` e `bin/` (mantenha o `.env`) e rode o instalador de novo (`php bin/install.php` ou `/install`). Ele só cria o que falta e aplica ajustes de colunas; não apaga dados.
 
 Notas:
-- **Apache/LiteSpeed:** o `.htaccess` já faz o roteamento, bloqueia `src/`, `database/`, `bin/`, `tests/` e o `.env`, e repassa o cabeçalho `Authorization`.
-- **Sem `mod_rewrite`:** a API também responde em `https://seu-dominio/index.php/api/v1/...`.
-- **Nginx:** aponte a raiz para a pasta e use `try_files $uri /index.php?$query_string;`, negando `location ~ ^/(src|database|bin|tests|docker)/` e arquivos `/\.`.
-- O app envia o token também no cabeçalho `X-Auth-Token`, para hospedagens que descartam o `Authorization`.
-- Tudo é gravado em UTC. Tokens da equipe são JWT HS256 e senhas bcrypt, compatíveis com o backend Python (mesma `SECRET_KEY`).
+- **Apache/LiteSpeed:** o `.htaccess` faz o roteamento, bloqueia `src/`, `database/`, `bin/`, `tests/` e o `.env`, e repassa o cabeçalho `Authorization`. O app também envia o token em `X-Auth-Token`, para hospedagens que descartam o `Authorization`.
+- **Sem `mod_rewrite`:** a API responde em `https://seu-dominio/index.php/api/v1/...`.
+- **Nginx:** raiz na pasta, `try_files $uri /index.php?$query_string;`, negando `location ~ ^/(src|database|bin|tests|docker)/` e arquivos `/\.`.
+- Tudo é gravado em **UTC**; painel e relatórios exibem no fuso de `APP_TIMEZONE`. Tokens da equipe são JWT HS256 e senhas bcrypt (compatíveis com o antigo backend Python; um banco criado por ele funciona sem migração de dados).
 
-Build do app apontando para o servidor PHP:
+## Painel, relatórios e importação
 
-```bash
-cd mobile
-flutter build web --release --dart-define=API_BASE_URL=https://seu-dominio/api/v1
-flutter build apk --release --dart-define=API_BASE_URL=https://seu-dominio/api/v1
-```
+Disponíveis no painel web e no app (área da equipe), com as mesmas regras de acesso.
 
-Se o backend estiver numa subpasta, inclua-a: `https://seu-dominio/vise/api/v1`.
+- **Painel** — indicadores do recorte (escola, turma, questionário, período): alunos, participação, concluídos, aplicações ativas, alunos em *Prioritário* e *Atenção*; conclusões por dia/mês; níveis por categoria; participação por turma; aplicações em andamento e alertas recentes.
+- **Relatórios** — filtros por escola, turma, série, turno, sexo, questionário e período. Gera **Excel (.xlsx)** com as abas *Resumo*, *Por escola*, *Por turma*, *Classificação*, *Resultados por aluno*, *Respostas por pergunta* e, opcionalmente, *Pendentes* e *Respostas detalhadas*. **Anonimizar alunos** troca nomes por códigos e remove CPF, matrícula e contatos.
+- **Importar planilha** — escolas (admin geral), turmas, alunos e equipe, em `.xlsx` ou `.csv` (até 10.000 linhas), com **planilha modelo** por tipo e botão **Simular**. Cria ou atualiza (escola por INEP, turma por escola+nome, aluno por escola+CPF, equipe por e-mail). Exemplo: [`docs/alunos_exemplo.csv`](docs/alunos_exemplo.csv).
+- **Exportar listas** — toda listagem do painel tem *Exportar Excel*, respeitando busca e filtros.
+- **Outras ações** — questionários: *Publicar* e *Nova versão*; aplicações: *Encerrar* e *Limpar respostas (demo)* (só admin geral); professor × turma.
 
-## App Flutter (Android + Web)
+Os níveis vêm do campo **Nível de atenção** das regras de classificação (baixo / moderado / alto). Regras sem nível aparecem como "Sem nível".
 
-Mesmo código em `mobile/`. Contrato da API: `/api/v1`.
+Boas práticas: compartilhe relatórios nominais só com quem acompanha os alunos (LGPD) e prefira a versão anonimizada para pesquisa e gestão; sempre rode **Simular** antes de importar.
 
-```bash
-cd mobile
-flutter pub get
-```
+## Importar o backup do sistema anterior
 
-### Web (MVP)
+O backup `.sql` do sistema antigo (tabelas `aluno`, `escola`, `categoria_pergunta`, `pergunta`, `respostas`…) pode ser trazido para o sistema novo:
 
-Com o backend no ar:
+- **Pelo navegador:** com `INSTALL_KEY` no `.env`, abra `/install`, cartão **Importar backup do sistema anterior**. Envie sem marcar *Gravar no banco* para ver o relatório e depois marcando para gravar.
+- **Por SSH:** `php bin/importar-legado.php backup.sql` (simula) e `php bin/importar-legado.php backup.sql --aplicar` (grava). `--pesquisador=email` define o dono dos questionários (padrão: primeiro admin geral).
 
-```bash
-flutter run -d chrome
-# ou
-flutter run -d edge
-```
+Como os dados são convertidos: cada "categoria" antiga é um questionário inteiro e vira um questionário publicado com uma categoria (as regras verde/amarelo/laranja/vermelho viram os níveis), copiado para cada escola que o usava; as respostas antigas ficam numa aplicação **encerrada** com as datas originais, e o resultado é calculado para quem completou. Os alunos continuam entrando com o mesmo CPF e nascimento. O relatório aponta CPFs ausentes ou inválidos, CPFs repetidos e turmas sem nome no backup. A importação pode ser repetida sem duplicar (tabela `legado_map`).
 
-API padrão na web: `http://localhost:8000/api/v1`.
+> O backup contém dados pessoais de alunos: não o coloque no repositório.
 
-Build estático:
+## API
 
-```bash
-flutter build web --release
-# saída em mobile/build/web
-```
+Contrato em [`docs/openapi.yaml`](docs/openapi.yaml). Erros vêm como `{"detail": "..."}`. Principais rotas (prefixo `/api/v1`):
 
-### Android
+| Área | Rotas |
+|---|---|
+| Aluno | `POST /login` (CPF + nascimento), `POST /logout`, `GET /me`, `POST /termos`, `GET /avatar` |
+| Questionários do aluno | `GET /aplicacoes`, `POST /aplicacoes/entrar-com-codigo`, `GET /salas/{codigo}` (público), `GET /aplicacoes/{id}/categorias`, `GET /aplicacoes/{id}/categorias/{c}/perguntas`, `POST /aplicacoes/{id}/respostas`, `POST /aplicacoes/{id}/respostas/lote`, `POST /aplicacoes/{id}/finalizar` |
+| Equipe | `POST /staff/login`, `GET /staff/me`, `GET /staff/questionarios`, `GET /staff/turmas`, `GET/POST /staff/salas`, `POST /staff/salas/{id}/encerrar` |
+| Cadastros da equipe | `GET /staff/cadastros`, `GET/POST /staff/cadastros/{recurso}`, `GET /staff/cadastros/{recurso}/formulario`, `GET/POST /staff/cadastros/{recurso}/{id}`, `POST .../{id}/excluir`, `POST .../acoes/{acao}` |
+| Painel e relatórios | `GET /staff/painel`, `GET /staff/relatorios/opcoes`, `GET /staff/relatorios/exportar`, `GET /staff/importacao`, `GET /staff/importacao/{tipo}/modelo`, `POST /staff/importacao/{tipo}` |
+
+## Testes
 
 ```bash
-flutter run
-# emulador usa http://10.0.2.2:8000/api/v1 por padrão
+# Backend: testes de integração (APAGAM as tabelas do banco informado — use um banco só para testes)
+TEST_DB_HOST=127.0.0.1 TEST_DB_PORT=3307 TEST_DB_NAME=vise_test TEST_DB_USER=root TEST_DB_PASSWORD=root \
+  php backend-php/tests/run.php            # opcional: um filtro pelo nome do teste como argumento
+
+# App
+cd mobile && flutter analyze && flutter test
 ```
 
-Device físico / outra URL:
+## Documentação e planejamento
 
-```bash
-flutter run --dart-define=API_BASE_URL=http://SEU_IP:8000/api/v1
-```
-
-### Shorebird (code push Android)
-
-O app Android está integrado ao **Shorebird** para atualizações OTA de código Dart. Ver [`docs/shorebird.md`](docs/shorebird.md).
-
-```bash
-cd mobile
-shorebird release android -- --dart-define=API_BASE_URL=https://api.seudominio/api/v1
-shorebird patch android -- --dart-define=API_BASE_URL=https://api.seudominio/api/v1
-```
-
-Fluxo: **login → termo → avatar → categorias → perguntas** (SQLite / IndexedDB na web) → sync em lote → finalizar.
-
-## Domínio
-
-- Tenant = **Escola** (Organização)
-- Vínculo ativo em `escola_user`
-- Instrumento: questionário → categorias → subcategorias → perguntas → opções
-- Pesquisador: próprios + `compartilhado_na_escola`
-- Aluno **nunca** recebe pontuação/classificação na API
-
-## CMS
-
-Painel em PHP em `/admin` (menu e permissões por perfil; cada usuário só enxerga as escolas em que tem vínculo ativo — o professor, só as próprias turmas).
-
-### Painel, relatórios e importação
-
-Também disponíveis no app, na área da equipe (menu **Painel**, **Relatórios** e **Importar planilha**), com as mesmas regras de acesso.
-
-- **Painel (`/admin`)** — indicadores do recorte escolhido (escola, turma, questionário, período): alunos, participação, concluídos, aplicações ativas, alunos em nível *Prioritário* e *Atenção*; gráfico de conclusões por dia/mês; níveis de atenção por categoria; participação por turma (menor primeiro, com atalho para o relatório da turma); aplicações em andamento e alertas recentes.
-- **Relatórios (`/admin/relatorios`)** — filtros por escola, turma, série, turno, sexo, questionário e período (7/30/90 dias, 12 meses, tudo ou datas). Mostra uma prévia e gera um **Excel (.xlsx)** com as abas escolhidas:
-  - *Resumo* (sempre): filtros aplicados, indicadores com explicação de como ler e classificação por categoria;
-  - *Por escola*, *Por turma* (participação baixa e casos prioritários destacados), *Classificação*, *Resultados por aluno*, *Respostas por pergunta*;
-  - opcionais: *Pendentes* (quem ainda não concluiu) e *Respostas detalhadas* (uma linha por resposta, até 50 mil).
-  - **Anonimizar alunos** troca nomes por códigos estáveis e remove CPF, matrícula e contatos — use ao compartilhar com pesquisa ou secretaria.
-- **Importar planilha (`/admin/importar`)** — escolas (admin geral), turmas, alunos e equipe, em `.xlsx` ou `.csv` (até 10.000 linhas). Cada tipo tem uma **planilha modelo** com instruções e a lista das escolas/turmas do usuário. Botão **Simular** valida tudo sem gravar; a importação cria ou atualiza (escola por INEP, turma por escola+nome, aluno por escola+CPF, equipe por e-mail) e mostra o resultado linha a linha. Os cabeçalhos são reconhecidos com variações (ex.: "Data de nascimento", "Nascimento"). Exemplo de CSV de alunos: [`docs/alunos_exemplo.csv`](docs/alunos_exemplo.csv).
-- **Exportar listas** — toda listagem do CMS tem o botão *Exportar Excel*, respeitando a busca e os filtros da tela.
-
-Os níveis *Adequado / Atenção / Prioritário* vêm do campo **Nível de atenção** das *Regras de classificação* (baixo / moderado / alto). Regras sem nível aparecem como "Sem nível" — vale revisá-las com a equipe técnica para os indicadores ficarem completos.
-
-Recomendações de uso:
-- Compartilhe relatórios nominais só com quem acompanha os alunos (LGPD); para pesquisa e gestão, prefira a versão anonimizada.
-- Sempre rode **Simular** antes de importar e mantenha a planilha de origem como registro.
-- Defina `APP_TIMEZONE` no `.env` (padrão `America/Cuiaba`): o banco grava em UTC e o painel/relatórios exibem datas e agrupam dias nesse fuso.
-- Para ver o painel com dados fictícios: `php bin/install.php --seed --seed-respostas=80` (cria turmas, alunos e respostas simuladas — só em ambiente de demonstração).
-
-### Outras ações
-
-- **Questionários:** selecionar itens → *Publicar* ou *Nova versão*
-- **Aplicações:** o admin da escola **cria/libera** a aplicação (escola, turma ou aluno)
-- **Aplicações:** *Encerrar* e *Limpar respostas (demo)* — esta última só para admin geral (apaga no servidor)
-- **Professor × turma:** liga o professor às turmas que ele acompanha
-
-## OpenAPI
-
-Contrato resumido em [`docs/openapi.yaml`](docs/openapi.yaml) (o backend PHP segue o mesmo contrato; erros vêm como `{"detail": "..."}`).
-
-## Planejamento
-
-Backlog e sprints (sequência de tasks): [`docs/SPRINTS.md`](docs/SPRINTS.md). Spec de produto: [`docs/Doc_Refatoracao_SMD.docx`](docs/Doc_Refatoracao_SMD.docx).
+- Backlog e sprints: [`docs/SPRINTS.md`](docs/SPRINTS.md)
+- Spec de produto: [`docs/Doc_Refatoracao_SMD.pdf`](docs/Doc_Refatoracao_SMD.pdf)
+- Arquitetura original: [`arquitetura_vise_sma_ccfc2ae7.plan.md`](arquitetura_vise_sma_ccfc2ae7.plan.md)
+- Shorebird (code push Android): [`docs/shorebird.md`](docs/shorebird.md)
