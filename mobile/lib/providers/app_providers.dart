@@ -188,7 +188,9 @@ class AppController extends ChangeNotifier {
       return true;
     } on DioException catch (error, stack) {
       debugPrint('Falha no login: $error\n$stack');
-      erro = error.response?.statusCode == 422
+      erro = error.response == null
+          ? 'Sem conexão com o servidor. Verifique a internet e tente novamente.'
+          : error.response?.statusCode == 422
           ? 'CPF ou data de nascimento não conferem.'
           : 'Não foi possível entrar. Verifique os dados e a conexão.';
       return false;
@@ -260,9 +262,11 @@ class AppController extends ChangeNotifier {
       return true;
     } on DioException catch (error, stack) {
       debugPrint('Falha ao entrar na sala: $error\n$stack');
-      erro = error.response?.statusCode == 404
-          ? 'Sala não encontrada ou você não faz parte do público.'
-          : mensagemDeErro(error, 'Não foi possível entrar na sala. Verifique a conexão.');
+      erro = switch (error.response?.statusCode) {
+        404 => 'Sala não encontrada ou você não faz parte do público.',
+        401 => 'Sua sessão expirou. Saia e entre novamente com CPF e data de nascimento.',
+        _ => mensagemDeErro(error, 'Não foi possível entrar na sala. Verifique a conexão.'),
+      };
       return false;
     } catch (error, stack) {
       debugPrint('Falha ao entrar na sala: $error\n$stack');
@@ -278,6 +282,10 @@ class AppController extends ChangeNotifier {
     if (modoStaff) {
       await staffRepo.logout();
     } else {
+      // Sem o token, respostas ainda não enviadas não poderiam mais ser sincronizadas.
+      for (final app in await database.listarAplicacoes()) {
+        await sync.sincronizar(app.id).catchError((_) {});
+      }
       await auth.logout();
     }
     await auth.storage.delete(key: ApiClient.sessionModeKey);

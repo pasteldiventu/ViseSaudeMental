@@ -20,6 +20,9 @@ class QuizRepository {
   Future<void> atualizarCache() async {
     final response = await api.dio.get<dynamic>('/aplicacoes');
     final aplicacoes = ApiClient.listFrom(response.data, 'aplicacoes');
+    await database.removerAplicacoesAusentes({
+      for (final aplicacao in aplicacoes) _int(aplicacao['id']),
+    });
     for (final aplicacao in aplicacoes) {
       final appId = _int(aplicacao['id']);
       final categoriasResponse = await api.dio.get<dynamic>(

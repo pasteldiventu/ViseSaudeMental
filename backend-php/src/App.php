@@ -75,6 +75,7 @@ final class App
 
         $r->get('/install', [InstallController::class, 'form']);
         $r->post('/install', [InstallController::class, 'run']);
+        $r->post('/install/legado', [InstallController::class, 'legado']);
 
         $r->get('/admin', [PainelController::class, 'dashboard']);
         $r->get('/admin/login', [AdminController::class, 'loginForm']);

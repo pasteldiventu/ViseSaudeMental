@@ -331,6 +331,14 @@ CREATE TABLE IF NOT EXISTS termos_aceite (
   CONSTRAINT termos_aceite_ibfk_1 FOREIGN KEY (aluno_id) REFERENCES alunos (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Vínculo "registro do sistema anterior -> registro novo" usado pela importação do backup antigo.
+CREATE TABLE IF NOT EXISTS legado_map (
+  chave VARCHAR(80) NOT NULL,
+  novo_id INT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (chave)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS personal_access_tokens (
   id INT NOT NULL AUTO_INCREMENT,
   tokenable_type VARCHAR(255) NOT NULL,

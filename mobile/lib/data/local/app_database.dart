@@ -167,6 +167,23 @@ class AppDatabase extends _$AppDatabase {
         const CachedAplicacaoCompanion(sincronizadaServidor: Value(true)),
       );
 
+  Future<void> limparDadosLocais() => transaction(() async {
+    for (final tabela in allTables) {
+      await delete(tabela).go();
+    }
+  });
+
+  /// Remove salas que o servidor não lista mais (encerradas), exceto as com respostas a enviar.
+  Future<void> removerAplicacoesAusentes(Set<int> ativas) => transaction(() async {
+    for (final app in await listarAplicacoes()) {
+      if (ativas.contains(app.id) || (await respostasPendentes(app.id)).isNotEmpty) continue;
+      await (delete(cachedCategoria)..where((t) => t.aplicacaoId.equals(app.id))).go();
+      await (delete(localProgress)..where((t) => t.aplicacaoId.equals(app.id))).go();
+      await (delete(outboxResposta)..where((t) => t.aplicacaoId.equals(app.id))).go();
+      await (delete(cachedAplicacao)..where((t) => t.id.equals(app.id))).go();
+    }
+  });
+
   Future<void> limparRespostas(int aplicacaoId) => transaction(() async {
     await (delete(
       outboxResposta,

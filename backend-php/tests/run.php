@@ -895,6 +895,97 @@ $testes['API staff: painel, opções, relatório e importação'] = function ():
     T::eq(401, T::http('GET', '/api/v1/staff/painel')['status'], 'painel exige login');
 };
 
+$testes['importar backup do sistema anterior'] = function (): void {
+    $now = Db::now();
+    Db::insert('users', ['name' => 'Admin', 'email' => 'admin@test.local', 'password' => Password::hash('password'), 'is_superuser' => 1, 'created_at' => $now, 'updated_at' => $now]);
+    $dump = <<<'SQL'
+        INSERT INTO `escola` (`escola_id`, `nome`, `telefone`, `cep`, `endereco`, `bairro`, `cidade`, `criado_em`, `alterado_em`, `excluido_em`) VALUES
+        (1, 'ESCOLA ANTIGA', '(66) 3531-0000', '78550-000', 'Rua A, 1', 'Centro', 'Sinop - MT', '2024-06-06 20:21:18', '2024-06-06 20:22:22', NULL),
+        (2, 'ESCOLA FECHADA', NULL, NULL, 'Rua B', NULL, 'Sinop', '2022-04-14 16:20:25', '2022-04-14 16:20:25', '2023-06-28 16:20:25');
+        INSERT INTO `serie` (`serie_id`, `descricao`, `criado_em`, `alterado_em`, `excluido_em`) VALUES
+        (6, '9º Ano', '2024-06-06 20:23:04', '2024-06-06 20:23:04', NULL);
+        INSERT INTO `backup_escola9_turma` (`turma_id`, `descricao`, `criado_em`, `alterado_em`, `excluido_em`) VALUES
+        (32, '9º Ano A', '2024-06-06 20:25:54', '2024-06-06 20:25:54', NULL);
+        INSERT INTO `aluno` (`aluno_id`, `nome`, `matricula`, `cpf`, `data_nascimento`, `sexo`, `telefone`, `periodo`, `escola_id`, `turma_id`, `serie_id`, `ano_letivo`, `foto`, `responsavel`, `contato_responsavel`, `criado_em`, `alterado_em`, `excluido_em`) VALUES
+        (10, 'Ana D\'Ávila \n', '2472418', '07593256189', '2009-10-21', 'Feminino', '66 99712-6880', 'Matutino', 1, 32, 6, 2024, NULL, 'Mãe', '66 99712 6880', '2024-06-06 20:29:07', '2025-08-12 15:52:55', NULL),
+        (11, 'Bruno O''Neil', NULL, ' 6300586103', '2010-01-02', 'Masculino', NULL, ' Vespertino', 1, 33, 6, 2026, NULL, NULL, NULL, '2026-06-06 20:29:07', '2026-06-06 20:29:07', NULL);
+        INSERT INTO `categoria_pergunta` (`categoria_pergunta_id`, `descricao_categoria`, `criado_em`, `alterado_em`, `excluido_em`, `cor`, `pergunta_por_pagina`, `url`, `ordem`, `participa_ibe`) VALUES
+        (3, 'ANTIGO', '2023-04-30 00:44:25', '2025-08-06 17:46:41', '2025-08-06 17:46:41', NULL, NULL, NULL, 0, 1),
+        (7, 'QUESTIONÁRIO 1', '2025-08-05 18:04:15', '2026-05-08 18:50:03', NULL, 'background-color: #6A5ACD; color: #fff', 1, NULL, 1, 1);
+        INSERT INTO `escola_categoria_pergunta` (`id`, `escola_id`, `categoria_pergunta_id`, `exige_consentimento_responsavel`, `criado_em`, `alterado_em`) VALUES
+        (1, 1, 7, 0, NULL, NULL);
+        INSERT INTO `subcategoria_pergunta` (`subcategoria_pergunta_id`, `categoria_pergunta_id`, `descricao_subcategoria`, `pergunta_por_pagina`, `ordem`, `criado_em`, `alterado_em`, `excluido_em`) VALUES
+        (1, 7, 'Humor', 1, 1, '2026-08-18 23:10:40', '2026-08-19 14:14:11', NULL);
+        INSERT INTO `pergunta` (`pergunta_id`, `descricao_pergunta`, `imagem`, `categoria_pergunta_id`, `subcategoria_pergunta_id`, `ordem`, `criado_em`, `alterado_em`, `excluido_em`) VALUES
+        (100, 'Como você está?', '', 7, 1, 0, '2025-08-05 18:04:15', '2025-08-05 18:04:15', NULL),
+        (101, 'Quer comentar algo?', NULL, 7, NULL, 0, '2025-08-05 18:04:15', '2025-08-05 18:04:15', NULL),
+        (102, 'Dorme bem?', NULL, 7, NULL, 0, '2025-08-05 18:04:15', '2025-08-05 18:04:15', NULL),
+        (200, 'Fuma?', NULL, 3, NULL, 0, '2023-04-25 22:29:39', '2025-08-06 17:46:41', '2025-08-06 17:46:41');
+        INSERT INTO `opcoes_resposta` (`opcoes_resposta_id`, `descricao_opcoes_resposta`, `pergunta_id`, `pontuacao`, `ordem`, `criado_em`, `alterado_em`, `excluido_em`) VALUES
+        (1000, 'Bem', 100, 0, 0, '2025-08-05 18:04:15', '2025-08-05 18:04:15', NULL),
+        (1001, 'Mal', 100, 5, 0, '2025-08-05 18:04:15', '2025-08-05 18:04:15', NULL),
+        (1002, 'Sim', 102, 1, 0, '2025-08-05 18:04:15', '2025-08-05 18:04:15', NULL),
+        (1003, 'Não', 102, 2, 0, '2025-08-05 18:04:15', '2025-08-05 18:04:15', NULL),
+        (2000, 'Sim', 200, 1, 0, '2023-04-25 22:29:39', '2023-04-25 22:29:39', NULL);
+        INSERT INTO `regras_classificacao` (`regra_classificacao_id`, `categoria_pergunta_id`, `min_score`, `max_score`, `status`, `titulo`, `interpretacao`, `criado_em`, `alterado_em`, `excluido_em`) VALUES
+        (1, 7, 0, 4, 'verde', NULL, NULL, '2025-08-05 19:18:37', '2025-08-05 19:18:37', NULL),
+        (2, 7, 5, 999, 'vermelho', 'Alto risco', 'Procure ajuda.', '2025-08-05 19:18:37', '2025-08-05 19:18:37', NULL);
+        INSERT INTO `respostas` (`resposta_id`, `aluno_id`, `pergunta_id`, `opcoes_resposta_id`, `criado_em`, `alterado_em`, `excluido_em`, `etapa`) VALUES
+        (1, 10, 100, 1001, '2025-08-14 17:48:00', '2025-08-14 17:48:00', NULL, 1),
+        (2, 10, 102, 1003, '2025-08-14 17:49:00', '2025-08-14 17:49:00', NULL, 1),
+        (3, 11, 100, 1000, '2026-07-02 11:30:00', '2026-07-02 11:30:00', NULL, 1),
+        (4, 10, 200, 2000, '2024-08-14 17:48:00', '2024-08-14 17:48:00', NULL, 1);
+        INSERT INTO `respostas_abertas` (`resposta_aberta_id`, `aluno_id`, `pergunta_id`, `resposta_aberta`, `criado_em`, `alterado_em`, `excluido_em`, `etapa`) VALUES
+        (5, 11, 101, 'velho', '2026-07-02 11:31:00', '2026-07-02 11:31:00', NULL, 1),
+        (6, 11, 101, 'novo', '2026-07-02 11:32:00', '2026-07-02 11:32:00', NULL, 1),
+        (7, 10, 101, 'Tudo certo; ok', '2025-08-14 17:50:00', '2025-08-14 17:50:00', NULL, 1);
+        SQL;
+
+    $sim = \Vise\Install\ImportLegado::executar($dump, false);
+    T::eq([false, 2], [$sim['aplicado'], $sim['resumo']['Alunos criados'] ?? null], 'simulação conta os alunos');
+    T::eq(0, (int) Db::value('SELECT COUNT(*) FROM alunos'), 'simulação não grava');
+
+    $res = \Vise\Install\ImportLegado::executar($dump, true);
+    T::eq(5, $res['resumo']['Respostas importadas'] ?? null, 'respostas importadas: ' . json_encode($res['resumo'], JSON_UNESCAPED_UNICODE));
+    T::eq(1, $res['resumo']['Respostas ignoradas (questionário/pergunta excluídos no sistema anterior)'] ?? null, 'resposta de questionário excluído ignorada');
+    T::eq(['ESCOLA ANTIGA'], Db::column('SELECT nome FROM escolas'), 'escola excluída e sem uso não vem');
+    T::eq(['Sinop', 'MT'], array_values(Db::one('SELECT municipio, uf FROM escolas')), 'município e UF');
+    T::eq(["Ana D'Ávila", '07593256189'], array_values(Db::one('SELECT nome, cpf FROM alunos WHERE matricula = ?', ['2472418'])), 'nome limpo e CPF');
+    T::eq('06300586103', Db::value("SELECT cpf FROM alunos WHERE nome = 'Bruno O''Neil'"), 'zero à esquerda do CPF restaurado');
+    T::eq(['9º Ano - turma 33', '9º Ano A'], Db::column('SELECT nome FROM turmas ORDER BY nome'), 'turmas com e sem nome no backup');
+    T::eq('vespertino', Db::value("SELECT turno FROM turmas WHERE nome = '9º Ano - turma 33'"), 'turno da turma');
+    $q = Db::one('SELECT id, nome, status FROM questionarios');
+    T::eq(['QUESTIONÁRIO 1', 'publicado'], [$q['nome'], $q['status']], 'só o questionário ativo, publicado');
+    T::eq('#6A5ACD', Db::value('SELECT cor FROM categorias'), 'cor da categoria');
+    T::eq(['multipla_escolha', 'texto', 'multipla_escolha'], Db::column('SELECT p.tipo FROM perguntas p ORDER BY p.ordem'), 'tipos das perguntas');
+    T::eq('Humor', Db::value('SELECT s.nome FROM perguntas p JOIN subcategorias s ON s.id = p.subcategoria_id'), 'subcategoria');
+    T::eq(['alto', 'Alto risco'], array_values(Db::one("SELECT nivel, rotulo FROM regras_classificacao WHERE descricao = 'Procure ajuda.'")), 'regra com nível');
+    T::eq('encerrada', Db::value('SELECT status FROM aplicacoes_questionario'), 'aplicação histórica encerrada');
+    T::eq('novo', Db::value("SELECT r.texto FROM respostas r JOIN alunos a ON a.id = r.aluno_id WHERE a.cpf = '06300586103' AND r.texto IS NOT NULL"), 'resposta aberta repetida: fica a mais recente');
+    $resultado = Db::one('SELECT classificacao_json, created_at FROM resultados');
+    T::eq(1, (int) Db::value('SELECT COUNT(*) FROM resultados'), 'resultado só para quem completou');
+    T::check(str_contains((string) $resultado['classificacao_json'], '"alto"'), 'classificação calculada');
+    T::eq('2025-08-14 17:50:00', (string) $resultado['created_at'], 'data do resultado = última resposta');
+
+    $login = T::http('POST', '/api/v1/login', ['cpf' => '063.005.861-03', 'data_nascimento' => '2010-01-02']);
+    T::eq(200, $login['status'], 'aluno importado entra no app');
+
+    $de_novo = \Vise\Install\ImportLegado::executar($dump, true);
+    T::eq([2, 5, 1], [
+        (int) Db::value('SELECT COUNT(*) FROM alunos'),
+        (int) Db::value('SELECT COUNT(*) FROM respostas'),
+        (int) Db::value('SELECT COUNT(*) FROM questionarios'),
+    ], 'rodar de novo não duplica');
+    T::eq(null, $de_novo['resumo']['Alunos criados'] ?? null, 'nada novo na segunda vez');
+
+    try {
+        \Vise\Install\ImportLegado::executar('SELECT 1;', false);
+        T::check(false, 'arquivo inválido deveria falhar');
+    } catch (RuntimeException $erro) {
+        T::check(str_contains($erro->getMessage(), 'backup do sistema anterior'), 'mensagem de arquivo inválido');
+    }
+};
+
 // ---------------------------------------------------------------- execução
 
 $port = (int) (getenv('TEST_PORT') ?: 18765);

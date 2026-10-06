@@ -38,15 +38,24 @@ class AuthRepository {
       }
       await storage.write(key: ApiClient.tokenKey, value: token);
       final aluno = data['aluno'];
-      if (aluno is Map && aluno['id'] != null) {
-        await storage.write(key: alunoIdKey, value: aluno['id'].toString());
+      final novoId = aluno is Map ? aluno['id']?.toString() : null;
+      if (novoId != null) {
+        if (await alunoId != novoId) {
+          // Questionários e respostas em cache pertencem ao aluno anterior.
+          await database.limparDadosLocais();
+        }
+        await storage.write(key: alunoIdKey, value: novoId);
       }
       return LoginResult(
         offline: false,
         alunoNome: aluno is Map ? aluno['nome']?.toString() : null,
       );
-    } on DioException catch (_) {
-      if ((await database.listarAplicacoes()).isNotEmpty) {
+    } on DioException catch (error) {
+      // Offline só sem resposta do servidor e com a sessão anterior (token) ainda guardada.
+      final semConexao = error.response == null;
+      if (semConexao &&
+          await storage.containsKey(key: ApiClient.tokenKey) &&
+          (await database.listarAplicacoes()).isNotEmpty) {
         return const LoginResult(offline: true);
       }
       rethrow;
