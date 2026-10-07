@@ -11,6 +11,7 @@ use Vise\Roles;
 use Vise\Security\Password;
 use Vise\Support\Planilha;
 use Vise\Support\Str;
+use Vise\Support\Turmas;
 use Vise\Support\XlsxWriter;
 
 /**
@@ -35,7 +36,7 @@ final class ImportacaoService
                     'nome' => ['label' => 'Nome', 'obrigatoria' => true, 'ajuda' => 'Nome completo do aluno.', 'exemplo' => 'Maria da Silva', 'aliases' => ['nome_aluno', 'aluno', 'nome_completo', 'estudante', 'nome_do_aluno']],
                     'cpf' => ['label' => 'CPF', 'obrigatoria' => true, 'ajuda' => 'Com ou sem pontuação. Zeros à esquerda perdidos pelo Excel são corrigidos.', 'exemplo' => '529.982.247-25', 'aliases' => ['cpf_aluno', 'cpf_do_aluno'], 'texto' => true],
                     'data_nascimento' => ['label' => 'Data de nascimento', 'obrigatoria' => true, 'ajuda' => 'DD/MM/AAAA ou AAAA-MM-DD (usada no login do aluno).', 'exemplo' => '21/10/2010', 'aliases' => ['nascimento', 'dt_nascimento', 'data_nasc', 'data_de_nasc']],
-                    'turma_nome' => ['label' => 'Turma', 'obrigatoria' => true, 'ajuda' => 'Nome da turma na escola (ex.: 9º Ano A).', 'exemplo' => '9º Ano A', 'aliases' => ['turma', 'nome_turma', 'classe']],
+                    'turma_nome' => ['label' => 'Turma', 'obrigatoria' => true, 'ajuda' => 'Série e turma juntas (ex.: 9º Ano A) ou só a turma (A) com a coluna Série preenchida.', 'exemplo' => '9º Ano A', 'aliases' => ['turma', 'nome_turma', 'classe']],
                     'serie' => ['label' => 'Série', 'ajuda' => 'Opcional. Com Série e Turno preenchidos, a turma é criada se ainda não existir.', 'exemplo' => '9º Ano', 'aliases' => ['ano', 'serie_ano', 'ano_serie']],
                     'turno' => $turno + ['ajuda' => 'Opcional (usado junto com Série para criar a turma).'],
                     'sexo' => ['label' => 'Sexo', 'ajuda' => 'Feminino, Masculino ou outro (aceita F/M).', 'exemplo' => 'Feminino', 'aliases' => ['genero']],
@@ -47,11 +48,11 @@ final class ImportacaoService
             ],
             'turmas' => [
                 'label' => 'Turmas',
-                'descricao' => 'Cadastra turmas. Mesmo nome na mesma escola = atualização da série e do turno. Séries novas são criadas automaticamente.',
+                'descricao' => 'Cadastra turmas (série + turma, ex.: 9º Ano + A). Mesma série e turma na mesma escola = atualização do turno. Séries novas são criadas automaticamente.',
                 'colunas' => [
                     'escola' => $escola,
-                    'nome' => ['label' => 'Turma', 'obrigatoria' => true, 'ajuda' => 'Nome da turma (único na escola).', 'exemplo' => '9º Ano A', 'aliases' => ['turma', 'turma_nome', 'nome_turma']],
                     'serie' => ['label' => 'Série', 'obrigatoria' => true, 'exemplo' => '9º Ano', 'aliases' => ['ano', 'serie_ano']],
+                    'nome' => ['label' => 'Turma', 'obrigatoria' => true, 'ajuda' => 'Só a identificação da turma (ex.: A, B, 901). Se vier "9º Ano A", a série é separada automaticamente.', 'exemplo' => 'A', 'aliases' => ['turma', 'turma_nome', 'nome_turma']],
                     'turno' => $turno + ['obrigatoria' => true],
                 ],
             ],
@@ -221,11 +222,11 @@ final class ImportacaoService
                  FROM escolas e
                  LEFT JOIN turmas t ON t.escola_id = e.id AND t.deleted_at IS NULL
                  LEFT JOIN series s ON s.id = t.serie_id
-                 WHERE e.deleted_at IS NULL AND $where ORDER BY e.nome, t.nome LIMIT 5000",
+                 WHERE e.deleted_at IS NULL AND $where ORDER BY e.nome, s.descricao, t.nome LIMIT 5000",
                 $escolasPermitidas ?? []
             );
-            foreach ($rows as $row) {
-                $referencia[] = [$row['escola'], XlsxWriter::c((string) ($row['inep'] ?? ''), 'text'), $row['turma'], $row['serie'], Resources::TURNOS[$row['turno'] ?? ''] ?? $row['turno']];
+                foreach ($rows as $row) {
+                $referencia[] = [$row['escola'], XlsxWriter::c((string) ($row['inep'] ?? ''), 'text'), $row['turma'] === null ? null : Turmas::rotulo($row['serie'], $row['turma']), $row['serie'], Resources::TURNOS[$row['turno'] ?? ''] ?? $row['turno']];
             }
             $xlsx->aba('Escolas e turmas', $referencia, ['congelar' => 3, 'filtro' => 3]);
         }
@@ -329,11 +330,12 @@ final class ImportacaoService
     private static function turma(array $row, ?array $escolas, array &$cache): array
     {
         $escola = self::escolaDaLinha($row['escola'] ?? '', $escolas, $cache);
-        $nome = self::obrigatorio($row, 'nome', 'Turma');
-        $serieId = self::serieId(self::obrigatorio($row, 'serie', 'Série'));
+        $serie = self::obrigatorio($row, 'serie', 'Série');
+        $nome = Turmas::semSerie(self::obrigatorio($row, 'nome', 'Turma'), $serie);
+        $serieId = self::serieId($serie);
         $turno = self::turno(self::obrigatorio($row, 'turno', 'Turno'));
-        $existente = Db::value('SELECT id FROM turmas WHERE escola_id = ? AND nome = ?', [$escola['id'], $nome]);
-        $descricao = $nome . ' — ' . $escola['nome'];
+        $existente = Db::value('SELECT id FROM turmas WHERE escola_id = ? AND serie_id = ? AND nome = ?', [$escola['id'], $serieId, $nome]);
+        $descricao = Turmas::rotulo($serie, $nome) . ' — ' . $escola['nome'];
         if ($existente === null) {
             $now = Db::now();
             Db::insert('turmas', ['escola_id' => $escola['id'], 'nome' => $nome, 'serie_id' => $serieId, 'turno' => $turno, 'created_at' => $now, 'updated_at' => $now]);
@@ -425,7 +427,7 @@ final class ImportacaoService
             throw new \InvalidArgumentException('Turmas só podem ser informadas para o perfil Professor.');
         }
         foreach ($turmas as $turmaNome) {
-            $turmaId = Db::value('SELECT id FROM turmas WHERE escola_id = ? AND nome = ?', [$escola['id'], $turmaNome]);
+            $turmaId = Turmas::encontrar((int) $escola['id'], $turmaNome);
             if ($turmaId === null) {
                 throw new \InvalidArgumentException("Turma '$turmaNome' não encontrada na escola {$escola['nome']}.");
             }
@@ -476,26 +478,21 @@ final class ImportacaoService
     /** @param array<string, mixed> $cache */
     private static function turmaId(int $escolaId, string $nome, string $serie, string $turno, array &$cache): int
     {
-        $id = Db::value('SELECT id FROM turmas WHERE escola_id = ? AND nome = ?', [$escolaId, $nome]);
+        $id = Turmas::encontrar($escolaId, $nome, $serie);
         if ($id !== null) {
-            return (int) $id;
+            return $id;
         }
-        if (trim($serie) === '' || trim($turno) === '') {
+        $serie = trim($serie) !== '' ? trim($serie) : (string) Turmas::separar($nome)[0];
+        if ($serie === '' || trim($turno) === '') {
             throw new \InvalidArgumentException("Turma '$nome' não encontrada nesta escola. Cadastre a turma ou preencha as colunas Série e Turno para criá-la.");
         }
         $now = Db::now();
-        return Db::insert('turmas', ['escola_id' => $escolaId, 'nome' => $nome, 'serie_id' => self::serieId($serie), 'turno' => self::turno($turno), 'created_at' => $now, 'updated_at' => $now]);
+        return Db::insert('turmas', ['escola_id' => $escolaId, 'nome' => Turmas::semSerie($nome, $serie), 'serie_id' => self::serieId($serie), 'turno' => self::turno($turno), 'created_at' => $now, 'updated_at' => $now]);
     }
 
     private static function serieId(string $descricao): int
     {
-        $descricao = trim($descricao);
-        $id = Db::value('SELECT id FROM series WHERE descricao = ?', [$descricao]);
-        if ($id !== null) {
-            return (int) $id;
-        }
-        $now = Db::now();
-        return Db::insert('series', ['descricao' => $descricao, 'created_at' => $now, 'updated_at' => $now]);
+        return Turmas::serieId($descricao);
     }
 
     private static function turno(string $valor): string

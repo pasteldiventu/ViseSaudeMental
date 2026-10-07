@@ -106,6 +106,67 @@ final class Auth
         return $flash;
     }
 
+    /** Escola em foco na sessão (null = todas). Só existe para quem enxerga mais de uma escola. */
+    public static function escolaFoco(Ctx $ctx): ?int
+    {
+        $id = (int) ($_SESSION['escola_foco'] ?? 0);
+        if ($id <= 0 || !self::podeFocar($ctx, $id)) {
+            unset($_SESSION['escola_foco']);
+            return null;
+        }
+        return $id;
+    }
+
+    public static function focar(Ctx $ctx, ?int $escolaId): void
+    {
+        if ($escolaId !== null && $escolaId > 0 && self::podeFocar($ctx, $escolaId)) {
+            $_SESSION['escola_foco'] = $escolaId;
+        } else {
+            unset($_SESSION['escola_foco']);
+        }
+    }
+
+    /**
+     * Aplica a escola em foco a uma query de filtros: ?escola_id=X passa a ser o foco, ?escola_id=0 (ou vazio)
+     * limpa o foco e, sem o parâmetro, o foco vira o filtro padrão.
+     *
+     * @param array<string, mixed> $query
+     * @return array<string, mixed>
+     */
+    public static function comFoco(Ctx $ctx, array $query): array
+    {
+        if (array_key_exists('escola_id', $query)) {
+            $valor = $query['escola_id'];
+            $id = is_string($valor) && ctype_digit($valor) ? (int) $valor : 0;
+            self::focar($ctx, $id > 0 ? $id : null);
+            if ($id <= 0) {
+                unset($query['escola_id']);
+            }
+            return $query;
+        }
+        $foco = self::escolaFoco($ctx);
+        if ($foco !== null) {
+            $query['escola_id'] = (string) $foco;
+        }
+        return $query;
+    }
+
+    /** @return array<int, string> escolas que o usuário pode pôr em foco (vazio se só tiver uma) */
+    public static function escolasParaFoco(Ctx $ctx): array
+    {
+        $escolas = Resources::options('escolas', $ctx);
+        return count($escolas) > 1 ? $escolas : [];
+    }
+
+    private static function podeFocar(Ctx $ctx, int $escolaId): bool
+    {
+        if ($ctx->su) {
+            return Db::value('SELECT COUNT(*) FROM escolas WHERE deleted_at IS NULL') > 1
+                && Db::value('SELECT id FROM escolas WHERE id = ? AND deleted_at IS NULL', [$escolaId]) !== null;
+        }
+        return count($ctx->escolaIds) > 1 && in_array($escolaId, $ctx->escolaIds, true);
+    }
+
     /** Contexto (papéis, escolas, turmas) de um usuário; null se não tiver acesso à gestão. */
     public static function buildContext(int $uid): ?Ctx
     {

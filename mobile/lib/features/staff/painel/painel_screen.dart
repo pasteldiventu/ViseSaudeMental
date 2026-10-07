@@ -7,6 +7,7 @@ import '../../../data/repositories/cadastros_repository.dart';
 import '../../../data/repositories/painel_repository.dart';
 import '../../../providers/app_providers.dart';
 import '../../common/ui_kit.dart';
+import '../escola_foco.dart';
 import 'painel_widgets.dart';
 
 /// Indicadores gerais no escopo do usuário (mesmos números do painel web).
@@ -39,6 +40,8 @@ class _PainelScreenState extends ConsumerState<PainelScreen> {
   @override
   void initState() {
     super.initState();
+    final foco = ref.read(escolaFocoProvider);
+    if (foco != null) _filtros = {..._filtros, 'escola_id': '${foco.id}'};
     Future.microtask(_carregar);
   }
 
@@ -54,6 +57,16 @@ class _PainelScreenState extends ConsumerState<PainelScreen> {
         _dados = dados;
         _carregando = false;
       });
+      final escola = int.tryParse(_filtros['escola_id'] ?? '');
+      if (escola == null) {
+        limparFocoEscola(ref);
+      } else {
+        final nome = dados.filtros
+            .where((f) => f.rotulo == 'Escola')
+            .map((f) => f.valor)
+            .firstOrNull;
+        if (nome != null) focarEscola(ref, escola, nome);
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -88,6 +101,14 @@ class _PainelScreenState extends ConsumerState<PainelScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(escolaFocoProvider, (_, foco) {
+      final novo = foco == null ? null : '${foco.id}';
+      if (novo == _filtros['escola_id']) return;
+      final filtros = Map.of(_filtros)
+        ..remove('escola_id')
+        ..remove('turma_id');
+      _aplicar({...filtros, 'escola_id': ?novo});
+    });
     final dados = _dados;
     final extras =
         dados?.filtros.where((f) => f.rotulo != 'Período').toList() ?? const [];

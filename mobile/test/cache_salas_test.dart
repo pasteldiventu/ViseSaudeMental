@@ -4,15 +4,30 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vise_sma_app/data/local/app_database.dart';
 
 Future<void> _salvar(AppDatabase db, int appId) => db.salvarInstrumento(
-  aplicacao: CachedAplicacaoCompanion.insert(id: Value(appId), titulo: 'Bem-estar'),
+  aplicacao: CachedAplicacaoCompanion.insert(
+    id: Value(appId),
+    titulo: 'Bem-estar',
+  ),
   categorias: [
-    CachedCategoriaCompanion.insert(id: 10, aplicacaoId: appId, titulo: 'Humor'),
+    CachedCategoriaCompanion.insert(
+      id: 10,
+      aplicacaoId: appId,
+      titulo: 'Humor',
+    ),
   ],
   perguntas: [
-    CachedPerguntaCompanion.insert(id: const Value(100), categoriaId: 10, texto: 'Como você está?'),
+    CachedPerguntaCompanion.insert(
+      id: const Value(100),
+      categoriaId: 10,
+      texto: 'Como você está?',
+    ),
   ],
   opcoes: [
-    CachedOpcaoCompanion.insert(id: const Value(1000), perguntaId: 100, descricao: 'Bem'),
+    CachedOpcaoCompanion.insert(
+      id: const Value(1000),
+      perguntaId: 100,
+      descricao: 'Bem',
+    ),
   ],
 );
 
@@ -43,7 +58,9 @@ void main() {
             'titulo TEXT NOT NULL, mensagem_avatar TEXT NULL, imagem_url TEXT NULL, imagem_local TEXT NULL, '
             'ordem INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (id))',
           );
-          raw.execute("INSERT INTO cached_categoria (id, aplicacao_id, titulo) VALUES (10, 1, 'Humor')");
+          raw.execute(
+            "INSERT INTO cached_categoria (id, aplicacao_id, titulo) VALUES (10, 1, 'Humor')",
+          );
           raw.execute('PRAGMA user_version = 1');
         },
       ),
@@ -51,9 +68,15 @@ void main() {
     addTearDown(db.close);
 
     expect((await db.observarCategorias(1).first).single.titulo, 'Humor');
-    await db.into(db.cachedCategoria).insert(
-      CachedCategoriaCompanion.insert(id: 10, aplicacaoId: 2, titulo: 'Humor'),
-    );
+    await db
+        .into(db.cachedCategoria)
+        .insert(
+          CachedCategoriaCompanion.insert(
+            id: 10,
+            aplicacaoId: 2,
+            titulo: 'Humor',
+          ),
+        );
     expect(await db.observarCategorias(2).first, hasLength(1));
   });
 }

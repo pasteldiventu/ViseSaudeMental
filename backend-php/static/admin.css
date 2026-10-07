@@ -136,6 +136,10 @@ nav { display: flex; flex-direction: column; gap: 2px; flex: 1; overflow-y: auto
 .greeting strong { font-size: 1.02rem; }
 .greeting span { color: var(--muted); font-size: .82rem; }
 .user-chip { display: flex; align-items: center; gap: 10px; }
+.foco { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.foco label { color: var(--muted); font-size: .8rem; white-space: nowrap; }
+.foco select { max-width: 280px; padding: 7px 10px; border-radius: 999px; }
+.foco.ativo select { border-color: var(--primary, #14b8a6); font-weight: 600; }
 .user-info { display: flex; flex-direction: column; line-height: 1.25; }
 .user-name { font-weight: 700; }
 .user-role { color: var(--muted); font-size: .78rem; }

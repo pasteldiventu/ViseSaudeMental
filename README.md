@@ -38,8 +38,10 @@ docker-compose.yml     MySQL 8 + PHP 8.2/Apache para desenvolvimento
 ## Domínio e perfis
 
 - **Escola** é o tenant. Usuários da equipe têm vínculo (`escola_user`) com uma ou mais escolas e só enxergam dados delas.
-- **Instrumento:** questionário → categorias → subcategorias → perguntas (múltipla escolha ou texto livre) → opções com pontuação. **Regras de classificação** por categoria transformam a soma em rótulo + nível de atenção (*Adequado*, *Atenção*, *Prioritário*).
-- **Aplicação (sala):** libera um questionário para a escola toda, uma turma ou um aluno, com **código de sala** e link `/?sala=CODIGO`.
+- **Turma** = série + identificação (Série *6º Ano*, Turma *A* → exibida como "6º Ano A"), com turno matutino, vespertino, noturno ou integral. Única por escola + série + identificação.
+- **Instrumento:** questionário → categorias → subcategorias → perguntas (múltipla escolha ou texto livre) → opções com pontuação. **Regras de classificação** por categoria transformam a soma em rótulo + nível de atenção (*Adequado*, *Atenção*, *Prioritário*). No detalhe do questionário, *Perguntas → + adicionar* cria a pergunta direto (categoria "Geral" automática se nenhuma for escolhida; opções digitadas uma por linha, `Texto = pontos`). Trocar a escola do questionário leva junto todo o conteúdo.
+- **Aplicação (sala):** libera um questionário para a escola toda, uma turma ou um aluno, com **código de sala** e link `/?sala=CODIGO`. Se o código não serve para o aluno, a mensagem diz o motivo (sala encerrada, de outra escola ou de outra turma); se o mesmo CPF + nascimento tem outro cadastro que se encaixa na sala, o app troca para ele.
+- **Escola em foco:** quem enxerga mais de uma escola escolhe uma no topo do painel web (ou no menu do app); listas, formulários novos, painel e relatórios passam a abrir já filtrados por ela durante a sessão. Abrir uma escola ou um registro dela também muda o foco.
 - O aluno **nunca** recebe pontuação nem classificação pela API.
 
 | Perfil | O que faz |
@@ -144,7 +146,7 @@ Disponíveis no painel web e no app (área da equipe), com as mesmas regras de a
 
 - **Painel** — indicadores do recorte (escola, turma, questionário, período): alunos, participação, concluídos, aplicações ativas, alunos em *Prioritário* e *Atenção*; conclusões por dia/mês; níveis por categoria; participação por turma; aplicações em andamento e alertas recentes.
 - **Relatórios** — filtros por escola, turma, série, turno, sexo, questionário e período. Gera **Excel (.xlsx)** com as abas *Resumo*, *Por escola*, *Por turma*, *Classificação*, *Resultados por aluno*, *Respostas por pergunta* e, opcionalmente, *Pendentes* e *Respostas detalhadas*. **Anonimizar alunos** troca nomes por códigos e remove CPF, matrícula e contatos.
-- **Importar planilha** — escolas (admin geral), turmas, alunos e equipe, em `.xlsx` ou `.csv` (até 10.000 linhas), com **planilha modelo** por tipo e botão **Simular**. Cria ou atualiza (escola por INEP, turma por escola+nome, aluno por escola+CPF, equipe por e-mail). Exemplo: [`docs/alunos_exemplo.csv`](docs/alunos_exemplo.csv).
+- **Importar planilha** — escolas (admin geral), turmas, alunos e equipe, em `.xlsx` ou `.csv` (até 10.000 linhas), com **planilha modelo** por tipo e botão **Simular**. Cria ou atualiza (escola por INEP, turma por escola+série+turma — "6º Ano B" numa só coluna também é entendido, aluno por escola+CPF, equipe por e-mail). Exemplo: [`docs/alunos_exemplo.csv`](docs/alunos_exemplo.csv).
 - **Exportar listas** — toda listagem do painel tem *Exportar Excel*, respeitando busca e filtros.
 - **Outras ações** — questionários: *Publicar* e *Nova versão*; aplicações: *Encerrar* e *Limpar respostas (demo)* (só admin geral); professor × turma.
 

@@ -63,8 +63,10 @@ class _StaffHomeScreenState extends ConsumerState<StaffHomeScreen> {
     }
   }
 
-  Future<void> _mostrarCompartilhar(SalaResumo sala, {String titulo = 'Sala criada'}) =>
-      mostrarCompartilharSala(context, sala, titulo: titulo);
+  Future<void> _mostrarCompartilhar(
+    SalaResumo sala, {
+    String titulo = 'Sala criada',
+  }) => mostrarCompartilharSala(context, sala, titulo: titulo);
 
   @override
   Widget build(BuildContext context) {
@@ -245,7 +247,10 @@ class _StaffHomeScreenState extends ConsumerState<StaffHomeScreen> {
                     child: _SalaCard(
                       sala: _salas[i],
                       cor: AppColors.pastelFor(i),
-                      onShare: () => _mostrarCompartilhar(_salas[i], titulo: 'Enviar link da sala'),
+                      onShare: () => _mostrarCompartilhar(
+                        _salas[i],
+                        titulo: 'Enviar link da sala',
+                      ),
                       onEncerrar: _salas[i].status == 'ativa'
                           ? () async {
                               await ref

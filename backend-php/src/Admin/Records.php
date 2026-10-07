@@ -99,7 +99,7 @@ final class Records
     }
 
     /**
-     * Filtros ?campo=id para colunas de chave estrangeira.
+     * Filtros ?campo=id para colunas de chave estrangeira (ou campos virtuais com 'filter').
      *
      * @param array<string, mixed> $query
      * @return array<string, int>
@@ -109,11 +109,31 @@ final class Records
         $filters = [];
         foreach ($res['fields'] as $name => $field) {
             $value = $query[$name] ?? null;
-            if ($field['type'] === 'fk' && empty($field['virtual']) && is_string($value) && ctype_digit($value)) {
+            if (self::filterable($field) && is_string($value) && ctype_digit($value) && (int) $value > 0) {
                 $filters[$name] = (int) $value;
             }
         }
         return $filters;
+    }
+
+    /** Campo que pode filtrar a lista por ID: chave estrangeira real ou virtual com SQL próprio ('filter'). */
+    public static function filterable(array $field): bool
+    {
+        return $field['type'] === 'fk' && (empty($field['virtual']) || isset($field['filter']));
+    }
+
+    /**
+     * Condição SQL (alias t) de um filtro.
+     *
+     * @return array{0: string, 1: list<int>}
+     */
+    public static function filterSql(array $res, string $name, int $value): array
+    {
+        $field = $res['fields'][$name];
+        if (isset($field['filter'])) {
+            return ['(' . $field['filter'] . ')', array_fill(0, substr_count($field['filter'], '?'), $value)];
+        }
+        return ["t.`$name` = ?", [$value]];
     }
 
     /**
@@ -127,8 +147,9 @@ final class Records
         [$where, $params] = Scope::where($res['key'], $ctx);
         $filters = self::filters($res, $query);
         foreach ($filters as $field => $value) {
-            $where .= " AND t.`$field` = ?";
-            $params[] = $value;
+            [$sql, $values] = self::filterSql($res, $field, $value);
+            $where .= " AND $sql";
+            array_push($params, ...$values);
         }
         $q = trim((string) (is_string($query['q'] ?? null) ? $query['q'] : ''));
         if ($q !== '' && $res['search'] !== []) {
@@ -199,22 +220,24 @@ final class Records
                 continue;
             }
             foreach ($child['fields'] as $name => $field) {
-                if ($field['type'] !== 'fk' || ($field['ref'] ?? '') !== $res['key'] || !empty($field['virtual'])) {
+                if (($field['ref'] ?? '') !== $res['key'] || !self::filterable($field)) {
                     continue;
                 }
                 [$where, $params] = Scope::where($childKey, $ctx);
+                [$filter, $filterParams] = self::filterSql($child + ['key' => $childKey], $name, (int) $row['id']);
                 $related[] = [
                     'key' => $childKey,
                     'field' => $name,
                     'label' => $child['plural'] . ($name === 'parent_id' ? ' (versões seguintes)' : ''),
                     'count' => (int) Db::value(
-                        "SELECT COUNT(*) FROM `{$child['table']}` t WHERE t.`$name` = ? AND $where",
-                        array_merge([$row['id']], $params)
+                        "SELECT COUNT(*) FROM `{$child['table']}` t WHERE $filter AND $where",
+                        array_merge($filterParams, $params)
                     ),
                     'can_add' => self::writable($child, $ctx) && ($field['form'] ?? true) !== false,
                 ];
             }
         }
+        usort($related, static fn (array $a, array $b) => (Resources::get($b['key'])['related_order'] ?? 0) <=> (Resources::get($a['key'])['related_order'] ?? 0));
         return $related;
     }
 

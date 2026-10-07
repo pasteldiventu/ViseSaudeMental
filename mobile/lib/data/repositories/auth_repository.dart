@@ -38,14 +38,7 @@ class AuthRepository {
       }
       await storage.write(key: ApiClient.tokenKey, value: token);
       final aluno = data['aluno'];
-      final novoId = aluno is Map ? aluno['id']?.toString() : null;
-      if (novoId != null) {
-        if (await alunoId != novoId) {
-          // Questionários e respostas em cache pertencem ao aluno anterior.
-          await database.limparDadosLocais();
-        }
-        await storage.write(key: alunoIdKey, value: novoId);
-      }
+      await _definirAluno(aluno is Map ? aluno['id']?.toString() : null);
       return LoginResult(
         offline: false,
         alunoNome: aluno is Map ? aluno['nome']?.toString() : null,
@@ -60,6 +53,22 @@ class AuthRepository {
       }
       rethrow;
     }
+  }
+
+  /// Ao entrar numa sala, o servidor pode trocar para outro cadastro do mesmo
+  /// aluno (mesmo CPF e nascimento, em outra escola) e devolver a nova sessão.
+  Future<void> trocarSessao(String token, Object? aluno) async {
+    await storage.write(key: ApiClient.tokenKey, value: token);
+    await _definirAluno(aluno is Map ? aluno['id']?.toString() : null);
+  }
+
+  Future<void> _definirAluno(String? novoId) async {
+    if (novoId == null) return;
+    if (await alunoId != novoId) {
+      // Questionários e respostas em cache pertencem ao aluno anterior.
+      await database.limparDadosLocais();
+    }
+    await storage.write(key: alunoIdKey, value: novoId);
   }
 
   Future<bool> temSessaoOuCache() async {

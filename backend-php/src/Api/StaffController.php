@@ -16,6 +16,7 @@ use Vise\Security\Password;
 use Vise\Services\CodigoSala;
 use Vise\Services\QuestionarioService;
 use Vise\Support\Str;
+use Vise\Support\Turmas;
 
 /** API do app de equipe (admin da escola, pesquisador, professor). */
 final class StaffController
@@ -109,12 +110,13 @@ final class StaffController
         $rows = Db::all(
             'SELECT t.id, t.nome, t.turno, t.escola_id, s.descricao AS serie FROM turmas t
              LEFT JOIN series s ON s.id = t.serie_id
-             WHERE ' . implode(' AND ', $where) . ' ORDER BY t.nome, t.id',
+             WHERE ' . implode(' AND ', $where) . ' ORDER BY s.descricao, t.nome, t.id',
             $params
         );
         return Response::json(array_map(static fn (array $t) => [
             'id' => (int) $t['id'],
-            'nome' => (string) $t['nome'],
+            'nome' => Turmas::rotulo($t['serie'], $t['nome']),
+            'turma' => (string) $t['nome'],
             'turno' => (string) $t['turno'],
             'escola_id' => (int) $t['escola_id'],
             'serie' => $t['serie'],
@@ -336,7 +338,7 @@ final class StaffController
     private static function salaItem(int $id): array
     {
         $a = Db::one(
-            'SELECT a.*, q.nome AS questionario_nome, e.nome AS escola_nome, t.nome AS turma_nome
+            'SELECT a.*, q.nome AS questionario_nome, e.nome AS escola_nome, ' . Turmas::sql('t') . ' AS turma_nome
              FROM aplicacoes_questionario a
              LEFT JOIN questionarios q ON q.id = a.questionario_id
              LEFT JOIN escolas e ON e.id = a.escola_id

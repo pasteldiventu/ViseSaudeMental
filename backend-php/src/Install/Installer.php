@@ -6,6 +6,8 @@ namespace Vise\Install;
 
 use Vise\Db;
 use Vise\Security\Password;
+use Vise\Services\QuestionarioService;
+use Vise\Support\Turmas;
 
 final class Installer
 {
@@ -41,7 +43,47 @@ final class Installer
             Db::pdo()->exec('ALTER TABLE termos_aceite MODIFY versao VARCHAR(50) NOT NULL');
             $log[] = 'Coluna termos_aceite.versao convertida para VARCHAR(50).';
         }
+        if (!self::indexExists('turmas', 'uq_turmas_escola_serie_nome')) {
+            Db::pdo()->exec('ALTER TABLE turmas ADD UNIQUE KEY uq_turmas_escola_serie_nome (escola_id, serie_id, nome)');
+            $log[] = 'Turmas agora são únicas por escola + série + turma.';
+        }
+        if (self::indexExists('turmas', 'uq_turmas_escola_nome')) {
+            Db::pdo()->exec('ALTER TABLE turmas DROP INDEX uq_turmas_escola_nome');
+        }
+        $corrigidos = 0;
+        foreach (Db::all('SELECT id FROM questionarios') as $q) {
+            $corrigidos += QuestionarioService::propagarEscola((int) $q['id']);
+        }
+        if ($corrigidos > 0) {
+            $log[] = "$corrigidos item(ns) de questionário (categorias, perguntas, opções, regras) passaram para a escola do seu questionário.";
+        }
+        $renomeadas = self::separarSerieDasTurmas();
+        if ($renomeadas > 0) {
+            $log[] = "$renomeadas turma(s) renomeada(s) para guardar só a identificação (ex.: \"9º Ano A\" → série 9º Ano, turma A).";
+        }
         return $log;
+    }
+
+    /** Nomes antigos repetiam a série ("9º Ano A"); agora turmas.nome guarda só a identificação ("A"). */
+    private static function separarSerieDasTurmas(): int
+    {
+        $total = 0;
+        $turmas = Db::all('SELECT t.id, t.escola_id, t.serie_id, t.nome, s.descricao AS serie FROM turmas t JOIN series s ON s.id = t.serie_id');
+        foreach ($turmas as $t) {
+            $nome = Turmas::semSerie((string) $t['nome'], (string) $t['serie']);
+            if ($nome === $t['nome']) {
+                continue;
+            }
+            $ocupado = Db::value(
+                'SELECT id FROM turmas WHERE escola_id = ? AND serie_id = ? AND nome = ? AND id <> ?',
+                [$t['escola_id'], $t['serie_id'], $nome, $t['id']]
+            );
+            if ($ocupado === null) {
+                Db::update('turmas', ['nome' => $nome], (int) $t['id']);
+                $total++;
+            }
+        }
+        return $total;
     }
 
     /** Cria ou atualiza um administrador geral. */

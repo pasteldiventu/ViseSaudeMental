@@ -36,23 +36,33 @@ class _CriarSalaScreenState extends ConsumerState<CriarSalaScreen> {
 
   Future<void> _carregar() async {
     final user = ref.read(appControllerProvider).staffUser;
-    final escolaId = user?.escolas.isNotEmpty == true
-        ? user!.escolas.first.id
-        : null;
+    final pedido = widget.questionarioId;
+    var escolaId =
+        ref.read(escolaFocoProvider)?.id ??
+        (user?.escolas.isNotEmpty == true ? user!.escolas.first.id : null);
     try {
       final repo = ref.read(staffRepositoryProvider);
+      if (pedido != null) {
+        // A sala é da escola do questionário escolhido, não da primeira escola do usuário.
+        final todos = await repo.listarQuestionarios();
+        escolaId =
+            todos.where((q) => q.id == pedido).firstOrNull?.escolaId ??
+            escolaId;
+      }
       final qs = await repo.listarQuestionarios(escolaId: escolaId);
       final turmas = await repo.listarTurmas(escolaId: escolaId);
       if (!mounted) return;
-      final pedido = widget.questionarioId;
       final publicado = pedido != null && qs.any((q) => q.id == pedido);
       setState(() {
         _escolaId = escolaId ?? (qs.isNotEmpty ? qs.first.escolaId : null);
         _questionarios = qs;
         _turmas = turmas;
-        _questionarioId = publicado ? pedido : (qs.isNotEmpty ? qs.first.id : null);
+        _questionarioId = publicado
+            ? pedido
+            : (qs.isNotEmpty ? qs.first.id : null);
         if (pedido != null && !publicado) {
-          _erro = 'Este questionário ainda não está publicado. Publique-o (no detalhe do questionário) para liberar em uma sala.';
+          _erro =
+              'Este questionário ainda não está publicado. Publique-o (no detalhe do questionário) para liberar em uma sala.';
         }
         _turmaId = turmas.isNotEmpty ? turmas.first.id : null;
         if (turmas.isEmpty) _alvo = 'escola';
@@ -80,7 +90,9 @@ class _CriarSalaScreenState extends ConsumerState<CriarSalaScreen> {
       _erro = null;
     });
     try {
-      final sala = await ref.read(staffRepositoryProvider).criarSala(
+      final sala = await ref
+          .read(staffRepositoryProvider)
+          .criarSala(
             questionarioId: questionarioId,
             escolaId: escolaId,
             alvoTipo: _alvo,
@@ -181,7 +193,9 @@ class _CriarSalaScreenState extends ConsumerState<CriarSalaScreen> {
                 SizedBox(
                   height: 52,
                   child: FilledButton(
-                    onPressed: _salvando || _questionarios.isEmpty ? null : _criar,
+                    onPressed: _salvando || _questionarios.isEmpty
+                        ? null
+                        : _criar,
                     child: _salvando
                         ? const SizedBox.square(
                             dimension: 22,

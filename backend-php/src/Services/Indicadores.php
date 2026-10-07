@@ -8,6 +8,7 @@ use Vise\Admin\Ctx;
 use Vise\Admin\Resources;
 use Vise\Db;
 use Vise\Support\Tempo;
+use Vise\Support\Turmas;
 
 /**
  * Indicadores do painel e dos relatórios, sempre no escopo do usuário
@@ -195,7 +196,7 @@ final class Indicadores
         $turmas = Db::all(
             "SELECT tu.id, tu.nome, tu.turno, s.descricao AS serie, e.id AS escola_id, e.nome AS escola
              FROM turmas tu LEFT JOIN series s ON s.id = tu.serie_id LEFT JOIN escolas e ON e.id = tu.escola_id
-             WHERE $tu ORDER BY e.nome, tu.nome",
+             WHERE $tu ORDER BY e.nome, s.descricao, tu.nome",
             $pt
         );
         $agregado = $this->agregar('turma_id');
@@ -206,7 +207,7 @@ final class Indicadores
                 continue;
             }
             $linhas[] = $this->linhaAgregada($agregado[$id] ?? null, $alunos[$id] ?? 0) + [
-                'turma_id' => $id, 'turma' => $t['nome'], 'serie' => $t['serie'], 'turno' => Resources::TURNOS[$t['turno']] ?? $t['turno'],
+                'turma_id' => $id, 'turma' => Turmas::rotulo($t['serie'], $t['nome']), 'serie' => $t['serie'], 'turno' => Resources::TURNOS[$t['turno']] ?? $t['turno'],
                 'escola_id' => (int) $t['escola_id'], 'escola' => $t['escola'],
             ];
         }
@@ -246,9 +247,10 @@ final class Indicadores
     public function aplicacoesAtivas(int $limite = 0): array
     {
         [$apAlvo, $pAlvo] = $this->condAplicacoesAlvo();
+        $turma = Turmas::sql('tu');
         $rows = Db::all(
             "SELECT ap.id, ap.alvo_tipo, ap.turma_id, ap.aluno_id, ap.escola_id, ap.codigo_sala, ap.created_at, ap.inicia_em, ap.termina_em,
-                    q.nome AS questionario, q.versao, e.nome AS escola, tu.nome AS turma
+                    q.nome AS questionario, q.versao, e.nome AS escola, $turma AS turma
              FROM aplicacoes_questionario ap
              LEFT JOIN questionarios q ON q.id = ap.questionario_id
              LEFT JOIN escolas e ON e.id = ap.escola_id
@@ -388,9 +390,10 @@ final class Indicadores
         [$al, $pa] = $this->condAlunos();
         [$ap, $pp] = $this->condAplicacoes();
         [$per, $pper] = $this->condPeriodo('rp.responded_at');
+        $turma = Turmas::sql('tu');
         $linhas = Db::all(
             "SELECT rp.responded_at, rp.tempo_gasto_ms, al.id AS aluno_id, al.nome AS aluno, al.cpf, al.matricula,
-                    e.nome AS escola, tu.nome AS turma, q.nome AS questionario, q.versao, ap.codigo_sala,
+                    e.nome AS escola, $turma AS turma, q.nome AS questionario, q.versao, ap.codigo_sala,
                     c.nome AS categoria, p.texto AS pergunta, o.descricao AS opcao, o.pontuacao, rp.texto
              FROM respostas rp
              JOIN aplicacoes_questionario ap ON ap.id = rp.aplicacao_id
@@ -415,8 +418,9 @@ final class Indicadores
     {
         [$al, $pa] = $this->condAlunos();
         [$apAlvo, $pAlvo] = $this->condAplicacoesAlvo();
+        $turma = Turmas::sql('tu');
         $linhas = Db::all(
-            "SELECT ap.id AS aplicacao_id, ap.codigo_sala, q.nome AS questionario, q.versao, e.nome AS escola, tu.nome AS turma,
+            "SELECT ap.id AS aplicacao_id, ap.codigo_sala, q.nome AS questionario, q.versao, e.nome AS escola, $turma AS turma,
                     al.id AS aluno_id, al.nome AS aluno, al.cpf, al.matricula, al.telefone, al.responsavel, al.contato_responsavel,
                     (SELECT COUNT(*) FROM respostas rp WHERE rp.aplicacao_id = ap.id AND rp.aluno_id = al.id) AS respondidas
              FROM aplicacoes_questionario ap
@@ -454,7 +458,7 @@ final class Indicadores
             "SELECT r.id, r.aluno_id, r.aplicacao_id, r.totais_json, r.classificacao_json, r.created_at,
                     ap.questionario_id, ap.codigo_sala, q.nome AS questionario_nome, q.versao,
                     al.nome AS aluno_nome, al.cpf, al.matricula, al.sexo, al.data_nascimento, al.turma_id, al.escola_id,
-                    tu.nome AS turma_nome, tu.turno, s.descricao AS serie, e.nome AS escola_nome
+                    IF(tu.id IS NULL, NULL, CONCAT_WS(' ', s.descricao, tu.nome)) AS turma_nome, tu.turno, s.descricao AS serie, e.nome AS escola_nome
              FROM resultados r
              JOIN aplicacoes_questionario ap ON ap.id = r.aplicacao_id
              JOIN alunos al ON al.id = r.aluno_id

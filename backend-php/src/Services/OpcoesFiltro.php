@@ -8,6 +8,7 @@ use Vise\Admin\Ctx;
 use Vise\Admin\Resources;
 use Vise\Admin\Scope;
 use Vise\Db;
+use Vise\Support\Turmas;
 
 /** Valores disponíveis nos filtros do painel e dos relatórios, no escopo do usuário. */
 final class OpcoesFiltro
@@ -21,10 +22,11 @@ final class OpcoesFiltro
             $params[] = $escolaId;
         }
         return array_map(static fn (array $t) => [
-            'id' => (int) $t['id'], 'nome' => (string) $t['nome'], 'escola_id' => (int) $t['escola_id'], 'escola' => (string) $t['escola'], 'turno' => $t['turno'],
+            'id' => (int) $t['id'], 'nome' => Turmas::rotulo($t['serie'], $t['nome']), 'escola_id' => (int) $t['escola_id'], 'escola' => (string) $t['escola'], 'turno' => $t['turno'],
         ], Db::all(
-            "SELECT t.id, t.nome, t.escola_id, t.turno, e.nome AS escola FROM turmas t JOIN escolas e ON e.id = t.escola_id
-             WHERE $where AND t.deleted_at IS NULL ORDER BY e.nome, t.nome LIMIT 2000",
+            "SELECT t.id, t.nome, s.descricao AS serie, t.escola_id, t.turno, e.nome AS escola FROM turmas t JOIN escolas e ON e.id = t.escola_id
+             LEFT JOIN series s ON s.id = t.serie_id
+             WHERE $where AND t.deleted_at IS NULL ORDER BY e.nome, s.descricao, t.nome LIMIT 2000",
             $params
         ));
     }

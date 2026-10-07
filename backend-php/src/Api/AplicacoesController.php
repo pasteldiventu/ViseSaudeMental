@@ -9,6 +9,8 @@ use Vise\Http\HttpError;
 use Vise\Http\Input;
 use Vise\Http\Request;
 use Vise\Http\Response;
+use Vise\Security\AlunoTokens;
+use Vise\Support\Turmas;
 
 final class AplicacoesController
 {
@@ -136,14 +138,75 @@ final class AplicacoesController
              LIMIT 1",
             array_merge([$codigo, $aluno['escola_id']], $params)
         );
-        if ($aplicacao === null) {
-            throw new HttpError(404, 'Sala não encontrada ou você não faz parte do público desta sala.');
+        if ($aplicacao !== null) {
+            return Response::json([
+                'aplicacao_id' => (int) $aplicacao['id'],
+                'questionario_nome' => (string) ($aplicacao['questionario_nome'] ?? 'Questionário'),
+                'codigo' => (string) ($aplicacao['codigo_sala'] ?: $codigo),
+            ]);
         }
-        return Response::json([
-            'aplicacao_id' => (int) $aplicacao['id'],
-            'questionario_nome' => (string) ($aplicacao['questionario_nome'] ?? 'Questionário'),
-            'codigo' => (string) ($aplicacao['codigo_sala'] ?: $codigo),
-        ]);
+        return self::salaForaDoPublico($aluno, $codigo);
+    }
+
+    /**
+     * O código não serve para este cadastro: explica o motivo ou, se outro cadastro da mesma pessoa
+     * (mesmo CPF e nascimento) faz parte da sala, entra com ele e devolve a nova sessão.
+     *
+     * @param array<string, mixed> $aluno
+     */
+    private static function salaForaDoPublico(array $aluno, string $codigo): Response
+    {
+        $sala = Db::one(
+            'SELECT a.*, q.nome AS questionario_nome, e.nome AS escola_nome, ' . Turmas::sql('t') . ' AS turma_nome
+             FROM aplicacoes_questionario a
+             LEFT JOIN questionarios q ON q.id = a.questionario_id
+             LEFT JOIN escolas e ON e.id = a.escola_id
+             LEFT JOIN turmas t ON t.id = a.turma_id
+             WHERE a.codigo_sala = ? AND a.deleted_at IS NULL',
+            [$codigo]
+        );
+        if ($sala === null) {
+            throw new HttpError(404, "Não existe sala com o código $codigo. Confira as letras e os números com o professor.");
+        }
+        if ($sala['status'] !== 'ativa') {
+            throw new HttpError(404, "A sala $codigo já foi encerrada. Peça um novo código ao professor.");
+        }
+
+        $outro = Db::one(
+            "SELECT al.* FROM alunos al
+             WHERE al.cpf = ? AND al.data_nascimento = ? AND al.id <> ? AND al.deleted_at IS NULL AND al.escola_id = ?
+               AND (? = 'escola' OR (? = 'turma' AND al.turma_id = ?) OR (? = 'aluno' AND al.id = ?))
+             ORDER BY al.id DESC LIMIT 1",
+            [
+                $aluno['cpf'], $aluno['data_nascimento'], $aluno['id'], $sala['escola_id'],
+                $sala['alvo_tipo'], $sala['alvo_tipo'], $sala['turma_id'], $sala['alvo_tipo'], $sala['aluno_id'],
+            ]
+        );
+        if ($outro !== null) {
+            return Response::json([
+                'aplicacao_id' => (int) $sala['id'],
+                'questionario_nome' => (string) ($sala['questionario_nome'] ?? 'Questionário'),
+                'codigo' => $codigo,
+                'token' => AlunoTokens::create((int) $outro['id']),
+                'aluno' => AuthController::alunoMe($outro),
+            ]);
+        }
+
+        $escolaAluno = (string) (Db::value('SELECT nome FROM escolas WHERE id = ?', [$aluno['escola_id']]) ?? 'outra escola');
+        if ((int) $sala['escola_id'] !== (int) $aluno['escola_id']) {
+            throw new HttpError(404, "A sala $codigo é da escola {$sala['escola_nome']}, mas o seu cadastro está na escola $escolaAluno. "
+                . 'Peça à escola para conferir o seu cadastro.');
+        }
+        if ($sala['alvo_tipo'] === 'turma') {
+            $turmaAluno = $aluno['turma_id'] === null ? null : Db::value(
+                "SELECT CONCAT_WS(' ', s.descricao, t.nome) FROM turmas t LEFT JOIN series s ON s.id = t.serie_id WHERE t.id = ?",
+                [$aluno['turma_id']]
+            );
+            throw new HttpError(404, "A sala $codigo é só para a turma {$sala['turma_nome']}. "
+                . ($turmaAluno === null ? 'O seu cadastro está sem turma.' : "O seu cadastro está na turma $turmaAluno.")
+                . ' Peça à escola para conferir o seu cadastro.');
+        }
+        throw new HttpError(404, "A sala $codigo foi criada para outro aluno.");
     }
 
     /** @param array<string, string> $params */

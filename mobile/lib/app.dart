@@ -51,9 +51,7 @@ class _ViseAppState extends ConsumerState<ViseApp> {
   Widget _home(AppController controller) {
     if (controller.inicializando) {
       return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(color: AppColors.mint),
-        ),
+        body: Center(child: CircularProgressIndicator(color: AppColors.mint)),
       );
     }
     if (!controller.autenticado) {

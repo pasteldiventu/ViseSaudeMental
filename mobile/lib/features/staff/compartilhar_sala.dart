@@ -23,7 +23,10 @@ Future<void> mostrarCompartilharSala(
           children: [
             Text(
               titulo,
-              style: GoogleFonts.figtree(fontSize: 22, fontWeight: FontWeight.w800),
+              style: GoogleFonts.figtree(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -39,7 +42,10 @@ Future<void> mostrarCompartilharSala(
               ),
               child: Column(
                 children: [
-                  Text('Código', style: GoogleFonts.figtree(color: AppColors.muted)),
+                  Text(
+                    'Código',
+                    style: GoogleFonts.figtree(color: AppColors.muted),
+                  ),
                   const SizedBox(height: 6),
                   Text(
                     sala.codigo,
@@ -71,7 +77,8 @@ Future<void> mostrarCompartilharSala(
               onPressed: () {
                 SharePlus.instance.share(
                   ShareParams(
-                    text: 'Entre na sala VISE-MT com o código ${sala.codigo}\n${sala.link}',
+                    text:
+                        'Entre na sala VISE-MT com o código ${sala.codigo}\n${sala.link}',
                     subject: 'Sala ${sala.questionarioNome}',
                   ),
                 );

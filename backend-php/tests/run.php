@@ -40,7 +40,9 @@ use Vise\Services\FiltrosRelatorio;
 use Vise\Services\ImportacaoService;
 use Vise\Services\ImportAlunosService;
 use Vise\Services\Indicadores;
+use Vise\Admin\Resources;
 use Vise\Support\Planilha;
+use Vise\Support\Turmas;
 use Vise\Support\XlsxReader;
 use Vise\Support\XlsxWriter;
 use Vise\Support\Zip;
@@ -673,6 +675,13 @@ function arquivoTemp(string $conteudo, string $extensao): string
     return $arquivo;
 }
 
+/** ID da turma pelo rótulo completo ("9º Ano B" = série + turma). */
+function turmaPorRotulo(string $rotulo): ?int
+{
+    $id = Db::value("SELECT t.id FROM turmas t JOIN series s ON s.id = t.serie_id WHERE CONCAT_WS(' ', s.descricao, t.nome) = ? ORDER BY t.id LIMIT 1", [$rotulo]);
+    return $id === null ? null : (int) $id;
+}
+
 $testes['xlsx: escrita, leitura e CSV Windows-1252'] = function (): void {
     $bin = (new XlsxWriter())->aba('Dados', [
         [XlsxWriter::c('Nome', 'header'), XlsxWriter::c('CPF', 'header'), XlsxWriter::c('Nascimento', 'header'), XlsxWriter::c('Nota', 'header')],
@@ -717,11 +726,12 @@ $testes['importação: alunos por xlsx com simulação, INEP e CPF sem zeros'] =
     T::eq([true, 4, 1, 1, 2], [$sim['simulacao'], $sim['total'], $sim['criados'], $sim['atualizados'], $sim['erros']], 'simulação: ' . json_encode($sim['linhas'], JSON_UNESCAPED_UNICODE));
     T::eq(['Coluna Estranha'], $sim['colunas_ignoradas'], 'coluna desconhecida ignorada');
     T::eq($antes, (int) Db::value('SELECT COUNT(*) FROM alunos'), 'simulação não grava');
-    T::eq(null, Db::value("SELECT id FROM turmas WHERE nome = '7º Ano C'"), 'simulação não cria turma');
+    T::eq(null, turmaPorRotulo('7º Ano C'), 'simulação não cria turma');
 
     $r = ImportacaoService::importar('alunos', $bin, [$escola]);
     T::eq([1, 1, 2], [$r['criados'], $r['atualizados'], $r['erros']], 'importação');
-    $carla = Db::one("SELECT a.*, t.nome AS turma, t.turno FROM alunos a JOIN turmas t ON t.id = a.turma_id WHERE a.cpf = '52998224725'");
+    $carla = Db::one("SELECT a.*, CONCAT_WS(' ', s.descricao, t.nome) AS turma, t.nome AS turma_curta, t.turno FROM alunos a JOIN turmas t ON t.id = a.turma_id JOIN series s ON s.id = t.serie_id WHERE a.cpf = '52998224725'");
+    T::eq('C', $carla['turma_curta'] ?? null, 'turma guarda só a identificação');
     T::eq(['Carla Nova', '2011-03-04', '7º Ano C', 'matutino', 'feminino'], [$carla['nome'] ?? null, $carla['data_nascimento'] ?? null, $carla['turma'] ?? null, $carla['turno'] ?? null, $carla['sexo'] ?? null], 'aluna criada com turma nova');
     T::eq('Aluno Demo Atualizado', Db::value("SELECT nome FROM alunos WHERE cpf = '07593256189'"), 'CPF sem zero à esquerda corrigido');
     $erros = array_values(array_filter($r['linhas'], static fn ($l) => $l['status'] === 'erro'));
@@ -743,7 +753,7 @@ $testes['importação: turmas, escolas e equipe'] = function (): void {
     $csv = "escola;turma;serie;turno\n00000001;6º Ano A;6º Ano;Vespertino\n00000001;9º Ano A;9º Ano;noite\n";
     $r = ImportacaoService::importar('turmas', $csv, [$escola]);
     T::eq([1, 1, 0], [$r['criados'], $r['atualizados'], $r['erros']], 'turmas: ' . json_encode($r['linhas'], JSON_UNESCAPED_UNICODE));
-    T::eq('noturno', Db::value("SELECT turno FROM turmas WHERE escola_id = ? AND nome = '9º Ano A'", [$escola]), 'turno atualizado');
+    T::eq('noturno', Db::value('SELECT turno FROM turmas WHERE id = ?', [turmaPorRotulo('9º Ano A')]), 'turno atualizado');
 
     $r = ImportacaoService::importar('escolas', "nome,municipio,uf,inep\nEE Nova,Sinop,mt,51009999\nEE Nova,Sinop,MT,51009999\n");
     T::eq([1, 1], [$r['criados'], $r['atualizados']], 'escolas criada e depois atualizada pelo INEP');
@@ -788,7 +798,7 @@ $testes['indicadores: níveis, filtros e escopo do professor'] = function (): vo
     T::check(count($geral->alertas(5)) <= 5 && $geral->alertas(5) !== [], 'alertas limitados');
     T::check($geral->distribuicaoRespostas() !== [], 'distribuição por pergunta');
 
-    $turmaB = (int) Db::value("SELECT id FROM turmas WHERE nome = '9º Ano B'");
+    $turmaB = (int) turmaPorRotulo('9º Ano B');
     $soB = new Indicadores($admin, FiltrosRelatorio::deQuery(['turma_id' => (string) $turmaB]));
     T::eq(['9º Ano B'], array_column($soB->porTurma(), 'turma'), 'filtro de turma');
     T::eq((int) Db::value('SELECT COUNT(*) FROM alunos WHERE turma_id = ?', [$turmaB]), $soB->resumo()['alunos'], 'alunos da turma');
@@ -847,11 +857,11 @@ $testes['painel web: dashboard, relatórios, exportações e importação'] = fu
     $arquivo = arquivoTemp((new XlsxWriter())->aba('T', [['escola', 'turma', 'serie', 'turno'], ['00000001', '5º Ano Z', '5º Ano', 'integral']])->gerar(), '.xlsx');
     $sim = T::http('POST', '/admin/importar', null, [], ['_csrf' => T::csrf($form['body']), 'tipo' => 'turmas', 'modo' => 'simular', 'arquivo' => new CURLFile($arquivo, 'application/octet-stream', 'turmas.xlsx')]);
     T::check(str_contains($sim['body'], 'Simulação (nada foi gravado)'), 'simulação pelo painel: ' . substr(strip_tags($sim['body']), -300));
-    T::eq(null, Db::value("SELECT id FROM turmas WHERE nome = '5º Ano Z'"), 'simulação não grava');
+    T::eq(null, turmaPorRotulo('5º Ano Z'), 'simulação não grava');
     $imp = T::http('POST', '/admin/importar', null, [], ['_csrf' => T::csrf($form['body']), 'tipo' => 'turmas', 'modo' => 'importar', 'arquivo' => new CURLFile($arquivo, 'application/octet-stream', 'turmas.xlsx')]);
     unlink($arquivo);
     T::check(str_contains($imp['body'], '1 turma(s) importado(s)'), 'importação pelo painel');
-    T::check(Db::value("SELECT id FROM turmas WHERE nome = '5º Ano Z'") !== null, 'turma gravada');
+    T::check(turmaPorRotulo('5º Ano Z') !== null, 'turma gravada');
 
     T::eq(302, adminLogin('professor@vise.local'), 'login professor');
     T::eq(403, T::http('GET', '/admin/importar')['status'], 'professor sem importação');
@@ -952,8 +962,8 @@ $testes['importar backup do sistema anterior'] = function (): void {
     T::eq(['Sinop', 'MT'], array_values(Db::one('SELECT municipio, uf FROM escolas')), 'município e UF');
     T::eq(["Ana D'Ávila", '07593256189'], array_values(Db::one('SELECT nome, cpf FROM alunos WHERE matricula = ?', ['2472418'])), 'nome limpo e CPF');
     T::eq('06300586103', Db::value("SELECT cpf FROM alunos WHERE nome = 'Bruno O''Neil'"), 'zero à esquerda do CPF restaurado');
-    T::eq(['9º Ano - turma 33', '9º Ano A'], Db::column('SELECT nome FROM turmas ORDER BY nome'), 'turmas com e sem nome no backup');
-    T::eq('vespertino', Db::value("SELECT turno FROM turmas WHERE nome = '9º Ano - turma 33'"), 'turno da turma');
+    T::eq(['9º Ano A', '9º Ano Turma 33'], Db::column("SELECT CONCAT_WS(' ', s.descricao, t.nome) AS r FROM turmas t JOIN series s ON s.id = t.serie_id ORDER BY r"), 'turmas com e sem nome no backup');
+    T::eq('vespertino', Db::value('SELECT turno FROM turmas WHERE id = ?', [turmaPorRotulo('9º Ano Turma 33')]), 'turno da turma');
     $q = Db::one('SELECT id, nome, status FROM questionarios');
     T::eq(['QUESTIONÁRIO 1', 'publicado'], [$q['nome'], $q['status']], 'só o questionário ativo, publicado');
     T::eq('#6A5ACD', Db::value('SELECT cor FROM categorias'), 'cor da categoria');
@@ -984,6 +994,185 @@ $testes['importar backup do sistema anterior'] = function (): void {
     } catch (RuntimeException $erro) {
         T::check(str_contains($erro->getMessage(), 'backup do sistema anterior'), 'mensagem de arquivo inválido');
     }
+};
+
+// ---------------------------------------------------------------- turma = série + identificação, perguntas, foco, sala
+
+$testes['turma: série + identificação'] = function (): void {
+    T::eq(['6º Ano', 'B'], Turmas::separar('6 ano B'), 'separa série e turma');
+    T::eq(['2º Ano', 'A - Alter'], Turmas::separar('2º Ano A - Alter'), 'turma com complemento');
+    T::eq([null, 'Turma X'], Turmas::separar('Turma X'), 'sem série no nome');
+    T::eq('B', Turmas::semSerie('6º Ano B', '6º Ano'), 'tira a série do começo');
+    T::eq('B', Turmas::semSerie('6º ano - B', '6º Ano'), 'ignora maiúsculas e separador');
+    T::eq('A', Turmas::semSerie('A', '9º Ano'), 'nome curto não muda');
+    T::eq('9º Ano', Turmas::semSerie('9º Ano', '9º Ano'), 'não deixa o nome vazio');
+
+    Seed::demo();
+    Seed::respostasDemo(8);
+    $escola = (int) Db::value("SELECT id FROM escolas WHERE inep = '00000001'");
+    T::eq(['A', 'B'], Db::column("SELECT DISTINCT nome FROM turmas WHERE escola_id = ? ORDER BY nome", [$escola]), 'seed guarda só a identificação');
+    $nonoA = turmaPorRotulo('9º Ano A');
+    T::eq($nonoA, Turmas::encontrar($escola, '9º ano A'), 'encontra pelo rótulo completo');
+    T::eq($nonoA, Turmas::encontrar($escola, 'A', '9º Ano'), 'encontra pela turma + série');
+    try {
+        Turmas::encontrar($escola, 'A');
+        T::check(false, 'turma "A" sem série é ambígua');
+    } catch (InvalidArgumentException $erro) {
+        T::check(str_contains($erro->getMessage(), 'mais de uma série'), 'mensagem de ambiguidade');
+    }
+
+    $h = staffAuth('admin.escola@vise.local');
+    $serie6 = Turmas::serieId('6 ano');
+    T::eq($serie6, Turmas::serieId('6º Ano'), 'série normalizada não duplica');
+    $form = T::http('GET', '/api/v1/staff/cadastros/turmas/formulario', null, $h);
+    T::eq(['escola_id', 'serie_id', 'nome', 'turno'], array_column($form['json']['campos'] ?? [], 'name'), 'formulário: escola, série, turma, turno');
+    T::eq('Turma', array_column($form['json']['campos'] ?? [], null, 'name')['nome']['label'] ?? null, 'campo se chama Turma');
+    $nova = T::http('POST', '/api/v1/staff/cadastros/turmas', ['escola_id' => $escola, 'serie_id' => $serie6, 'nome' => '6º Ano B', 'turno' => 'integral'], $h);
+    T::eq(201, $nova['status'], 'cria turma: ' . $nova['body']);
+    T::eq('B', Db::value('SELECT nome FROM turmas WHERE id = ?', [$nova['json']['id'] ?? 0]), 'série digitada no nome é removida');
+    $repetida = T::http('POST', '/api/v1/staff/cadastros/turmas', ['escola_id' => $escola, 'serie_id' => $serie6, 'nome' => 'B', 'turno' => 'matutino'], $h);
+    T::eq(422, $repetida['status'], 'turma repetida');
+    T::check(str_contains((string) ($repetida['json']['detail'] ?? ''), '6º Ano B'), 'mensagem cita a turma: ' . $repetida['body']);
+    $titulo = Resources::title('turmas', (int) $nova['json']['id']);
+    T::check(str_contains($titulo, '6º Ano B (integral)'), "título com série + turma ($titulo)");
+
+    $now = Db::now();
+    $legada = Db::insert('turmas', ['escola_id' => $escola, 'serie_id' => $serie6, 'nome' => '6º Ano C', 'turno' => 'matutino', 'created_at' => $now, 'updated_at' => $now]);
+    Installer::migrate();
+    T::eq('C', Db::value('SELECT nome FROM turmas WHERE id = ?', [$legada]), 'migração separa a série dos nomes antigos');
+    T::eq(1, (int) Db::value("SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'turmas' AND INDEX_NAME = 'uq_turmas_escola_serie_nome' AND SEQ_IN_INDEX = 1"), 'chave única escola + série + turma');
+};
+
+$testes['questionário: perguntas criadas direto do questionário'] = function (): void {
+    Seed::demo();
+    $h = staffAuth('pesquisador@vise.local');
+    $escola = (int) Db::value("SELECT id FROM escolas WHERE inep = '00000001'");
+    $q = T::http('POST', '/api/v1/staff/cadastros/questionarios', ['nome' => 'TESTE', 'escola_id' => $escola, 'status' => 'publicado', 'versao' => 1], $h);
+    $qid = (int) ($q['json']['id'] ?? 0);
+
+    $sem = T::http('POST', '/api/v1/staff/salas', ['questionario_id' => $qid, 'escola_id' => $escola, 'alvo_tipo' => 'escola'], $h);
+    T::check(str_contains((string) ($sem['json']['detail'] ?? ''), 'Perguntas'), 'mensagem diz onde criar perguntas: ' . $sem['body']);
+
+    $det = T::http('GET', "/api/v1/staff/cadastros/questionarios/$qid", null, $h);
+    $rel = $det['json']['relacionados'] ?? [];
+    T::eq('perguntas', $rel[0]['key'] ?? null, 'Perguntas aparecem primeiro no questionário');
+    T::eq(['questionario_id', 0, true], [$rel[0]['field'] ?? null, $rel[0]['count'] ?? null, $rel[0]['can_add'] ?? null], 'pode adicionar pergunta pelo questionário');
+
+    $form = T::http('GET', "/api/v1/staff/cadastros/perguntas/formulario?questionario_id=$qid", null, $h);
+    $campos = array_column($form['json']['campos'] ?? [], null, 'name');
+    T::eq((string) $qid, $campos['questionario_id']['valor'] ?? null, 'questionário pré-preenchido');
+    T::eq(false, $campos['categoria_id']['obrigatorio'] ?? null, 'categoria opcional');
+    T::check(str_contains((string) ($campos['opcoes_texto']['valor'] ?? ''), 'Nunca = 0'), 'opções sugeridas');
+
+    $semOpcoes = T::http('POST', '/api/v1/staff/cadastros/perguntas', ['questionario_id' => $qid, 'tipo' => 'multipla_escolha', 'texto' => 'Sem opções?', 'opcoes_texto' => 'Só uma', 'peso' => '1'], $h);
+    T::eq(422, $semOpcoes['status'], 'exige duas opções');
+
+    $p = T::http('POST', '/api/v1/staff/cadastros/perguntas', [
+        'questionario_id' => $qid, 'tipo' => 'multipla_escolha', 'texto' => 'Você dormiu bem?', 'peso' => '1', 'obrigatoria' => true,
+        'opcoes_texto' => "Nada = 0\nUm pouco; 1\nMuito = 3 pontos\n",
+    ], $h);
+    T::eq(201, $p['status'], 'cria pergunta pelo questionário: ' . $p['body']);
+    $pid = (int) ($p['json']['id'] ?? 0);
+    $cat = Db::one('SELECT c.* FROM categorias c JOIN perguntas p ON p.categoria_id = c.id WHERE p.id = ?', [$pid]);
+    T::eq(['Geral', $qid, $escola], [$cat['nome'] ?? null, (int) ($cat['questionario_id'] ?? 0), (int) ($cat['escola_id'] ?? 0)], 'categoria "Geral" criada');
+    T::eq([['Nada', 0], ['Um pouco', 1], ['Muito', 3]], array_map(static fn ($o) => [$o['descricao'], (int) $o['pontuacao']], Db::all('SELECT descricao, pontuacao FROM opcoes_resposta WHERE pergunta_id = ? ORDER BY ordem', [$pid])), 'opções criadas com os pontos');
+    $p2 = T::http('POST', '/api/v1/staff/cadastros/perguntas', ['questionario_id' => $qid, 'tipo' => 'texto', 'texto' => 'Algo a contar?', 'peso' => '1'], $h);
+    T::eq(201, $p2['status'], 'pergunta de texto');
+    T::eq([(int) $cat['id'], 2], [(int) Db::value('SELECT categoria_id FROM perguntas WHERE id = ?', [$p2['json']['id'] ?? 0]), (int) Db::value('SELECT ordem FROM perguntas WHERE id = ?', [$p2['json']['id'] ?? 0])], 'mesma categoria, próxima ordem');
+
+    $lista = T::http('GET', "/api/v1/staff/cadastros/perguntas?questionario_id=$qid", null, $h);
+    T::eq([2, 'Questionário'], [$lista['json']['total'] ?? null, $lista['json']['filtros'][0]['label'] ?? null], 'lista de perguntas do questionário');
+    T::eq(2, array_column(T::http('GET', "/api/v1/staff/cadastros/questionarios/$qid", null, $h)['json']['relacionados'] ?? [], null, 'key')['perguntas']['count'] ?? null, 'contagem no questionário');
+
+    $sala = T::http('POST', '/api/v1/staff/salas', ['questionario_id' => $qid, 'escola_id' => $escola, 'alvo_tipo' => 'escola'], $h);
+    T::eq(201, $sala['status'], 'sala liberada: ' . $sala['body']);
+
+    $now = Db::now();
+    $outra = Db::insert('escolas', ['nome' => 'Escola Nova', 'municipio' => 'X', 'uf' => 'MT', 'ativo' => 1, 'created_at' => $now, 'updated_at' => $now]);
+    T::eq(302, adminLogin('admin@vise.local'), 'login admin geral');
+    $edit = T::http('GET', "/admin/questionarios/$qid/edit");
+    $salvo = T::http('POST', "/admin/questionarios/$qid/edit", null, [], [
+        '_csrf' => T::csrf($edit['body']), 'nome' => 'TESTE', 'escola_id' => (string) $outra, 'status' => 'publicado', 'versao' => '1',
+        'pesquisador_id' => (string) Db::value("SELECT id FROM users WHERE email = 'pesquisador@vise.local'"),
+    ]);
+    T::eq(302, $salvo['status'], 'troca a escola do questionário');
+    T::eq([$outra], array_map('intval', Db::column('SELECT DISTINCT escola_id FROM perguntas WHERE categoria_id = ?', [$cat['id']])), 'perguntas acompanham a escola');
+    T::eq([$outra], array_map('intval', Db::column('SELECT DISTINCT escola_id FROM opcoes_resposta WHERE pergunta_id = ?', [$pid])), 'opções acompanham a escola');
+};
+
+$testes['escola em foco acompanha a sessão do painel'] = function (): void {
+    Seed::demo();
+    $now = Db::now();
+    $demo = (int) Db::value("SELECT id FROM escolas WHERE inep = '00000001'");
+    $outra = Db::insert('escolas', ['nome' => 'Colégio Foco', 'municipio' => 'X', 'uf' => 'MT', 'ativo' => 1, 'created_at' => $now, 'updated_at' => $now]);
+    $serie = Turmas::serieId('7º Ano');
+    $turma = Db::insert('turmas', ['escola_id' => $outra, 'serie_id' => $serie, 'nome' => 'A', 'turno' => 'matutino', 'created_at' => $now, 'updated_at' => $now]);
+    Db::insert('alunos', ['nome' => 'Aluna do Foco', 'cpf' => '52998224725', 'data_nascimento' => '2012-01-01', 'escola_id' => $outra, 'turma_id' => $turma, 'created_at' => $now, 'updated_at' => $now]);
+
+    T::eq(302, adminLogin('admin@vise.local'), 'login admin geral');
+    $todos = T::http('GET', '/admin/alunos');
+    T::check(str_contains($todos['body'], 'Aluno Demo') && str_contains($todos['body'], 'Aluna do Foco'), 'sem foco: todas as escolas');
+    T::check(str_contains($todos['body'], 'Escola em foco'), 'seletor de escola no topo');
+
+    T::eq(200, T::http('GET', "/admin/escolas/$outra")['status'], 'abre a escola');
+    $alunos = T::http('GET', '/admin/alunos');
+    T::check(str_contains($alunos['body'], 'Aluna do Foco') && !str_contains($alunos['body'], 'Aluno Demo'), 'lista de alunos segue a escola aberta');
+    T::check(str_contains($alunos['body'], 'Colégio Foco'), 'filtro da escola aparece');
+    $turmas = T::http('GET', '/admin/turmas');
+    T::check(str_contains($turmas['body'], '1 registro(s)'), 'turmas também seguem o foco');
+    $novo = T::http('GET', '/admin/alunos/create');
+    T::check((bool) preg_match('/<option value="' . $outra . '" selected>/', $novo['body']), 'formulário novo já vem com a escola');
+
+    $limpo = T::http('GET', '/admin/alunos?escola_id=0');
+    T::check(str_contains($limpo['body'], 'Aluno Demo') && str_contains($limpo['body'], 'Aluna do Foco'), 'remover o filtro volta a todas');
+    T::check(str_contains(T::http('GET', '/admin/alunos')['body'], 'Aluno Demo'), 'foco limpo na sessão');
+
+    $troca = T::http('GET', "/admin/foco?escola_id=$demo&voltar=alunos");
+    T::eq(302, $troca['status'], 'seletor troca o foco');
+    $demoLista = T::http('GET', '/admin/alunos');
+    T::check(str_contains($demoLista['body'], 'Aluno Demo') && !str_contains($demoLista['body'], 'Aluna do Foco'), 'foco trocado pelo seletor');
+    $painel = T::http('GET', '/admin/relatorios');
+    T::check((bool) preg_match('/<option value="' . $demo . '" selected>/', $painel['body']), 'relatórios seguem o foco');
+
+    T::eq(302, adminLogin('admin.escola@vise.local'), 'admin de uma escola só');
+    T::check(!str_contains(T::http('GET', '/admin/alunos')['body'], 'Escola em foco'), 'sem seletor para quem tem uma escola');
+};
+
+$testes['sala: mensagens claras e cadastro duplicado'] = function (): void {
+    Seed::demo();
+    Seed::respostasDemo(8);
+    $now = Db::now();
+    $demo = (int) Db::value("SELECT id FROM escolas WHERE inep = '00000001'");
+    $outra = Db::insert('escolas', ['nome' => 'Colégio Alternativo', 'municipio' => 'X', 'uf' => 'MT', 'ativo' => 1, 'created_at' => $now, 'updated_at' => $now]);
+    $q = (int) Db::value('SELECT id FROM questionarios WHERE escola_id = ? ORDER BY id LIMIT 1', [$demo]);
+    $copia = QuestionarioService::criarNovaVersao($q);
+    Db::update('questionarios', ['escola_id' => $outra, 'status' => 'publicado'], $copia);
+    QuestionarioService::propagarEscola($copia);
+    Db::insert('aplicacoes_questionario', ['questionario_id' => $copia, 'escola_id' => $outra, 'alvo_tipo' => 'escola', 'status' => 'ativa', 'codigo_sala' => 'VISETESTE', 'created_at' => $now, 'updated_at' => $now]);
+    $nonoB = turmaPorRotulo('9º Ano B');
+    Db::insert('aplicacoes_questionario', ['questionario_id' => $q, 'escola_id' => $demo, 'alvo_tipo' => 'turma', 'turma_id' => $nonoB, 'status' => 'ativa', 'codigo_sala' => 'SOBEB', 'created_at' => $now, 'updated_at' => $now]);
+    Db::insert('aplicacoes_questionario', ['questionario_id' => $q, 'escola_id' => $demo, 'alvo_tipo' => 'escola', 'status' => 'encerrada', 'codigo_sala' => 'FECHADA', 'created_at' => $now, 'updated_at' => $now]);
+
+    $login = T::http('POST', '/api/v1/login', ['cpf' => '07593256189', 'data_nascimento' => '2009-10-21']);
+    $h = ['Authorization' => 'Bearer ' . ($login['json']['token'] ?? '')];
+    $entrar = static fn (string $codigo) => T::http('POST', '/api/v1/aplicacoes/entrar-com-codigo', ['codigo' => $codigo], $h);
+
+    $r = $entrar('NAOEXISTE');
+    T::check($r['status'] === 404 && str_contains((string) $r['json']['detail'], 'Não existe sala'), 'código inexistente: ' . $r['body']);
+    $r = $entrar('FECHADA');
+    T::check(str_contains((string) ($r['json']['detail'] ?? ''), 'encerrada'), 'sala encerrada: ' . $r['body']);
+    $r = $entrar('SOBEB');
+    T::check(str_contains((string) ($r['json']['detail'] ?? ''), 'turma 9º Ano B') && str_contains((string) $r['json']['detail'], '9º Ano A'), 'outra turma: ' . $r['body']);
+    $r = $entrar('VISETESTE');
+    T::eq(404, $r['status'], 'aluno de outra escola');
+    T::check(str_contains((string) ($r['json']['detail'] ?? ''), 'Colégio Alternativo') && str_contains((string) $r['json']['detail'], 'Escola Demo Vise'), 'mensagem cita as duas escolas: ' . $r['body']);
+
+    $mesmaPessoa = Db::insert('alunos', ['nome' => 'João Vitor', 'cpf' => '07593256189', 'data_nascimento' => '2009-10-21', 'escola_id' => $outra, 'created_at' => $now, 'updated_at' => $now]);
+    $r = $entrar('VISETESTE');
+    T::eq(200, $r['status'], 'cadastro duplicado entra na sala: ' . $r['body']);
+    T::eq($mesmaPessoa, $r['json']['aluno']['id'] ?? null, 'troca para o cadastro da escola da sala');
+    $novoH = ['Authorization' => 'Bearer ' . ($r['json']['token'] ?? '')];
+    T::eq(200, T::http('GET', "/api/v1/aplicacoes/{$r['json']['aplicacao_id']}/categorias", null, $novoH)['status'], 'nova sessão acessa a sala');
 };
 
 // ---------------------------------------------------------------- execução

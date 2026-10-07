@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS turmas (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   deleted_at DATETIME NULL,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_turmas_escola_nome (escola_id, nome),
+  UNIQUE KEY uq_turmas_escola_serie_nome (escola_id, serie_id, nome),
   KEY ix_turmas_serie_id (serie_id),
   KEY ix_turmas_escola_id (escola_id),
   CONSTRAINT turmas_ibfk_1 FOREIGN KEY (serie_id) REFERENCES series (id),

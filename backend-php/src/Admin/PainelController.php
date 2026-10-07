@@ -27,7 +27,7 @@ final class PainelController
         if (!$ctx->canAccess('resultado')) {
             return View::page($ctx, 'Painel', self::cadastros($ctx), 'dashboard');
         }
-        $filtros = FiltrosRelatorio::deQuery($request->query, '30')->noEscopo($ctx);
+        $filtros = FiltrosRelatorio::deQuery(Auth::comFoco($ctx, $request->query), '30')->noEscopo($ctx);
         $ind = new Indicadores($ctx, $filtros);
         $r = $ind->resumo();
 
@@ -73,7 +73,7 @@ final class PainelController
     public static function relatorios(Request $request): Response
     {
         $ctx = self::ctxRelatorio($request);
-        $filtros = FiltrosRelatorio::deQuery($request->query)->noEscopo($ctx);
+        $filtros = FiltrosRelatorio::deQuery(Auth::comFoco($ctx, $request->query))->noEscopo($ctx);
         $abas = RelatorioService::abasEscolhidas($request->query['abas'] ?? null);
         $anonimizar = ($request->query['anonimizar'] ?? '') === '1';
 
@@ -114,7 +114,7 @@ final class PainelController
     public static function exportar(Request $request): Response
     {
         $ctx = self::ctxRelatorio($request);
-        $filtros = FiltrosRelatorio::deQuery($request->query)->noEscopo($ctx);
+        $filtros = FiltrosRelatorio::deQuery(Auth::comFoco($ctx, $request->query))->noEscopo($ctx);
         $arquivo = RelatorioService::gerar(
             $ctx,
             $filtros,

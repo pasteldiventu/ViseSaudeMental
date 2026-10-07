@@ -247,6 +247,7 @@ final class CadastrosController
             'busca_label' => implode(', ', array_map(static fn ($c) => mb_strtolower($res['fields'][$c]['label']), $res['search'])),
             'colunas' => array_map(static fn ($c) => $res['fields'][$c]['label'] ?? $c, $res['list']),
             'acoes' => self::acoes($res, $ctx),
+            'filtra_escola' => isset($res['fields']['escola_id']) && Records::filterable($res['fields']['escola_id']),
         ];
     }
 

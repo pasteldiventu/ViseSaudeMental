@@ -18,7 +18,11 @@ class RoleGateScreen extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF132830), AppColors.background, Color(0xFF0C181C)],
+            colors: [
+              Color(0xFF132830),
+              AppColors.background,
+              Color(0xFF0C181C),
+            ],
           ),
         ),
         child: SafeArea(
@@ -115,10 +119,15 @@ class _RoleCard extends StatelessWidget {
                 width: 52,
                 height: 52,
                 decoration: BoxDecoration(
-                  color: accent ? AppColors.mint.withValues(alpha: 0.2) : AppColors.surfaceSoft,
+                  color: accent
+                      ? AppColors.mint.withValues(alpha: 0.2)
+                      : AppColors.surfaceSoft,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: Icon(icon, color: accent ? AppColors.mint : AppColors.text),
+                child: Icon(
+                  icon,
+                  color: accent ? AppColors.mint : AppColors.text,
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(

@@ -33,10 +33,11 @@ ResponseBody _json(Object body, int status) => ResponseBody.fromString(
   },
 );
 
-ResponseBody _semConexao(RequestOptions options) => throw DioException.connectionError(
-  requestOptions: options,
-  reason: 'offline',
-);
+ResponseBody _semConexao(RequestOptions options) =>
+    throw DioException.connectionError(
+      requestOptions: options,
+      reason: 'offline',
+    );
 
 Future<(AuthRepository, AppDatabase, FlutterSecureStorage)> _montar(
   ResponseBody Function(RequestOptions) responder, {
@@ -47,7 +48,10 @@ Future<(AuthRepository, AppDatabase, FlutterSecureStorage)> _montar(
   final db = AppDatabase.conectar(NativeDatabase.memory());
   addTearDown(db.close);
   await db.salvarInstrumento(
-    aplicacao: CachedAplicacaoCompanion.insert(id: const Value(1), titulo: 'Bem-estar'),
+    aplicacao: CachedAplicacaoCompanion.insert(
+      id: const Value(1),
+      titulo: 'Bem-estar',
+    ),
     categorias: const [],
     perguntas: const [],
     opcoes: const [],
@@ -59,19 +63,31 @@ Future<(AuthRepository, AppDatabase, FlutterSecureStorage)> _montar(
 void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
 
-  test('credenciais inválidas não entram em modo offline com o cache', () async {
-    final (auth, _, _) = await _montar(
-      (_) => _json({'message': 'Credenciais inválidas.'}, 422),
-    );
-    expect(
-      auth.login('12345678901', '2010-01-01'),
-      throwsA(isA<DioException>().having((e) => e.response?.statusCode, 'status', 422)),
-    );
-  });
+  test(
+    'credenciais inválidas não entram em modo offline com o cache',
+    () async {
+      final (auth, _, _) = await _montar(
+        (_) => _json({'message': 'Credenciais inválidas.'}, 422),
+      );
+      expect(
+        auth.login('12345678901', '2010-01-01'),
+        throwsA(
+          isA<DioException>().having(
+            (e) => e.response?.statusCode,
+            'status',
+            422,
+          ),
+        ),
+      );
+    },
+  );
 
   test('sem conexão e sem sessão anterior o login falha', () async {
     final (auth, _, _) = await _montar(_semConexao);
-    expect(auth.login('12345678901', '2010-01-01'), throwsA(isA<DioException>()));
+    expect(
+      auth.login('12345678901', '2010-01-01'),
+      throwsA(isA<DioException>()),
+    );
   });
 
   test('sem conexão e com token guardado continua offline', () async {

@@ -7,6 +7,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../data/repositories/cadastros_repository.dart';
 import '../../../data/repositories/painel_repository.dart';
 import '../../../providers/app_providers.dart';
+import '../escola_foco.dart';
 import 'painel_screen.dart';
 import 'painel_widgets.dart';
 
@@ -28,6 +29,8 @@ class RelatoriosScreen extends ConsumerStatefulWidget {
 class _RelatoriosScreenState extends ConsumerState<RelatoriosScreen> {
   late final Map<String, String> _filtros = {
     'periodo': 'tudo',
+    if (ref.read(escolaFocoProvider) case final foco?)
+      'escola_id': '${foco.id}',
     ...widget.filtrosIniciais,
   };
   Set<String>? _abas;
@@ -114,6 +117,12 @@ class _RelatoriosScreenState extends ConsumerState<RelatoriosScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(escolaFocoProvider, (_, foco) {
+      final novo = foco == null ? null : '${foco.id}';
+      if (novo == _filtros['escola_id']) return;
+      _definir('escola_id', novo);
+      _definir('turma_id', null);
+    });
     final opcoes = ref.watch(opcoesRelatorioProvider);
     return Scaffold(
       drawer: widget.drawer,
@@ -172,6 +181,16 @@ class _RelatoriosScreenState extends ConsumerState<RelatoriosScreen> {
                     onChanged: (v) {
                       _definir('escola_id', v);
                       _definir('turma_id', null);
+                      final id = int.tryParse(v ?? '');
+                      if (id == null) {
+                        limparFocoEscola(ref);
+                      } else {
+                        focarEscola(
+                          ref,
+                          id,
+                          o.escolas.firstWhere((e) => e.valor == v).rotulo,
+                        );
+                      }
                     },
                   ),
                 ),

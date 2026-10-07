@@ -33,8 +33,58 @@ final class QuestionarioService
     public static function exigirPerguntas(int $questionarioId): void
     {
         if (self::totalPerguntas($questionarioId) === 0) {
-            throw new HttpError(422, 'Este questionário ainda não tem perguntas. Cadastre ao menos uma pergunta antes de liberar a sala.');
+            throw new HttpError(422, self::mensagemSemPerguntas($questionarioId));
         }
+    }
+
+    public static function mensagemSemPerguntas(int $questionarioId): string
+    {
+        $nome = (string) (Db::value('SELECT nome FROM questionarios WHERE id = ?', [$questionarioId]) ?? '#' . $questionarioId);
+        return "O questionário \"$nome\" ainda não tem perguntas. Abra o questionário e, em Perguntas, toque em \"+ adicionar\" "
+            . '(a pergunta já vem com as opções de resposta). Depois libere a sala.';
+    }
+
+    /** Categoria usada quando a pergunta é criada direto do questionário: a primeira existente ou "Geral". */
+    public static function categoriaPadrao(int $questionarioId): int
+    {
+        $id = Db::value(
+            'SELECT id FROM categorias WHERE questionario_id = ? AND deleted_at IS NULL ORDER BY ordem, id LIMIT 1',
+            [$questionarioId]
+        );
+        if ($id !== null) {
+            return (int) $id;
+        }
+        $escola = Db::value('SELECT escola_id FROM questionarios WHERE id = ?', [$questionarioId]);
+        if ($escola === null) {
+            throw new HttpError(422, 'Questionário não encontrado.');
+        }
+        $now = Db::now();
+        return Db::insert('categorias', [
+            'questionario_id' => $questionarioId, 'escola_id' => $escola, 'nome' => 'Geral', 'ordem' => 1,
+            'created_at' => $now, 'updated_at' => $now,
+        ]);
+    }
+
+    /** Categorias, perguntas, opções e regras guardam a escola do questionário; acompanham quando ela muda. */
+    public static function propagarEscola(int $questionarioId): int
+    {
+        $escola = Db::value('SELECT escola_id FROM questionarios WHERE id = ?', [$questionarioId]);
+        if ($escola === null) {
+            return 0;
+        }
+        $total = 0;
+        $comandos = [
+            'UPDATE categorias SET escola_id = ? WHERE questionario_id = ? AND escola_id <> ?',
+            'UPDATE subcategorias s JOIN categorias c ON c.id = s.categoria_id SET s.escola_id = ? WHERE c.questionario_id = ? AND s.escola_id <> ?',
+            'UPDATE perguntas p JOIN categorias c ON c.id = p.categoria_id SET p.escola_id = ? WHERE c.questionario_id = ? AND p.escola_id <> ?',
+            'UPDATE opcoes_resposta o JOIN perguntas p ON p.id = o.pergunta_id JOIN categorias c ON c.id = p.categoria_id SET o.escola_id = ? WHERE c.questionario_id = ? AND o.escola_id <> ?',
+            'UPDATE regras_classificacao r LEFT JOIN categorias c ON c.id = r.categoria_id SET r.escola_id = ? WHERE (r.questionario_id = ? OR c.questionario_id = ?) AND r.escola_id <> ?',
+        ];
+        foreach ($comandos as $sql) {
+            $params = substr_count($sql, '?') === 4 ? [$escola, $questionarioId, $questionarioId, $escola] : [$escola, $questionarioId, $escola];
+            $total += Db::run($sql, $params)->rowCount();
+        }
+        return $total;
     }
 
     /** Copia o questionário publicado (categorias, subcategorias, perguntas, opções e regras) como rascunho v+1. */

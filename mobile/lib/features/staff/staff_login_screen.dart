@@ -86,8 +86,9 @@ class _StaffLoginScreenState extends ConsumerState<StaffLoginScreen> {
                     labelText: 'E-mail',
                     prefixIcon: Icon(Icons.mail_outline),
                   ),
-                  validator: (v) =>
-                      (v ?? '').contains('@') ? null : 'Informe um e-mail válido.',
+                  validator: (v) => (v ?? '').contains('@')
+                      ? null
+                      : 'Informe um e-mail válido.',
                 ),
                 const SizedBox(height: 14),
                 TextFormField(

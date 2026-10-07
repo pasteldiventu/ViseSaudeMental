@@ -116,6 +116,7 @@ final class View
             . '</aside>'
             . '<main class="content">'
             . '<div class="topbar"><div class="greeting"><strong>Olá, ' . self::e($primeiroNome) . '</strong><span>' . self::e(self::hoje()) . '</span></div>'
+            . self::seletorFoco($ctx, $active)
             . '<div class="user-chip"><span class="avatar">' . self::e(self::iniciais($ctx->name)) . '</span>'
             . '<span class="user-info"><span class="user-name">' . self::e($ctx->name) . '</span><span class="user-role">' . self::e($papel) . '</span></span>'
             . '<a class="icon-btn" href="' . self::e(Url::to('/admin/logout')) . '" title="Sair" aria-label="Sair">' . self::icone('sair') . '</a></div></div>'
@@ -126,6 +127,24 @@ final class View
             . '</main></div>';
 
         return Response::html(self::document($title, $body), $status);
+    }
+
+    /** Escola em foco: listas, formulários novos, painel e relatórios passam a mostrar só ela. */
+    private static function seletorFoco(Ctx $ctx, string $active): string
+    {
+        $escolas = Auth::escolasParaFoco($ctx);
+        if ($escolas === []) {
+            return '';
+        }
+        $foco = Auth::escolaFoco($ctx);
+        $html = '<form class="foco' . ($foco !== null ? ' ativo' : '') . '" method="get" action="' . self::e(Url::to('/admin/foco')) . '">'
+            . '<input type="hidden" name="voltar" value="' . self::e($active) . '">'
+            . '<label for="foco-escola">Escola em foco</label>'
+            . '<select id="foco-escola" name="escola_id" onchange="this.form.submit()"><option value="0">Todas as escolas</option>';
+        foreach ($escolas as $id => $nome) {
+            $html .= '<option value="' . $id . '"' . ($id === $foco ? ' selected' : '') . '>' . self::e($nome) . '</option>';
+        }
+        return $html . '</select><noscript><button class="btn" type="submit">Ok</button></noscript></form>';
     }
 
     public static function loginPage(?string $error = null, string $email = ''): Response

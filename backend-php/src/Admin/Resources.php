@@ -11,6 +11,7 @@ use Vise\Security\Password;
 use Vise\Services\CodigoSala;
 use Vise\Services\QuestionarioService;
 use Vise\Support\Str;
+use Vise\Support\Turmas;
 
 /**
  * Definição declarativa dos cadastros do painel.
@@ -169,6 +170,10 @@ final class Resources
                         'label' => 'Perfil na escola', 'type' => 'select', 'options' => Roles::LABELS,
                         'virtual' => true, 'create_only' => true,
                     ],
+                    'escola_id' => [
+                        'label' => 'Escola', 'type' => 'fk', 'ref' => 'escolas', 'virtual' => true, 'form' => false,
+                        'filter' => "EXISTS (SELECT 1 FROM escola_user f_eu WHERE f_eu.user_id = t.id AND f_eu.escola_id = ? AND f_eu.status = 'ativo')",
+                    ],
                 ],
                 'validate' => static function (array &$data, ?array $row, Ctx $ctx, array $input): void {
                     $data['email'] = Str::lower((string) $data['email']);
@@ -243,13 +248,17 @@ final class Resources
                 'perm' => 'professor_turma',
                 'singular' => 'Professor × turma',
                 'plural' => 'Professores e turmas',
-                'title' => "CONCAT(COALESCE(u.name, '?'), ' → ', COALESCE(tu.nome, '?'))",
-                'join' => 'LEFT JOIN users u ON u.id = t.user_id LEFT JOIN turmas tu ON tu.id = t.turma_id',
+                'title' => "CONCAT(COALESCE(u.name, '?'), ' → ', COALESCE(CONCAT_WS(' ', s.descricao, tu.nome), '?'))",
+                'join' => 'LEFT JOIN users u ON u.id = t.user_id LEFT JOIN turmas tu ON tu.id = t.turma_id LEFT JOIN series s ON s.id = tu.serie_id',
                 'list' => ['user_id', 'turma_id'],
                 'search' => [],
                 'fields' => [
                     'user_id' => ['label' => 'Professor', 'type' => 'fk', 'ref' => 'usuarios', 'required' => true],
                     'turma_id' => ['label' => 'Turma', 'type' => 'fk', 'ref' => 'turmas', 'required' => true],
+                    'escola_id' => [
+                        'label' => 'Escola', 'type' => 'fk', 'ref' => 'escolas', 'virtual' => true, 'form' => false,
+                        'filter' => 'EXISTS (SELECT 1 FROM turmas f_t WHERE f_t.id = t.turma_id AND f_t.escola_id = ?)',
+                    ],
                 ],
             ],
 
@@ -273,18 +282,29 @@ final class Resources
                 'perm' => 'turma',
                 'singular' => 'Turma',
                 'plural' => 'Turmas',
-                'title' => "CONCAT(COALESCE(e.nome, ''), ' · ', t.nome, ' (', t.turno, ')')",
-                'join' => 'LEFT JOIN escolas e ON e.id = t.escola_id',
-                'list' => ['nome', 'serie_id', 'turno', 'escola_id'],
+                'title' => "CONCAT(COALESCE(e.nome, ''), ' · ', CONCAT_WS(' ', s.descricao, t.nome), ' (', t.turno, ')')",
+                'join' => 'LEFT JOIN escolas e ON e.id = t.escola_id LEFT JOIN series s ON s.id = t.serie_id',
+                'list' => ['serie_id', 'nome', 'turno', 'escola_id'],
                 'search' => ['nome'],
-                'order' => 't.nome ASC',
+                'order' => 't.serie_id ASC, t.nome ASC',
                 'cascade' => [['professor_turma', 'turma_id']],
                 'fields' => [
-                    'nome' => ['label' => 'Nome', 'type' => 'text', 'required' => true, 'max' => 255],
-                    'serie_id' => ['label' => 'Série', 'type' => 'fk', 'ref' => 'series', 'required' => true],
-                    'turno' => ['label' => 'Turno', 'type' => 'select', 'options' => self::TURNOS, 'required' => true],
                     'escola_id' => ['label' => 'Escola', 'type' => 'fk', 'ref' => 'escolas', 'required' => true],
+                    'serie_id' => ['label' => 'Série', 'type' => 'fk', 'ref' => 'series', 'required' => true, 'help' => 'Ex.: 6º Ano. Cadastre novas séries em Turmas e alunos › Séries.'],
+                    'nome' => ['label' => 'Turma', 'type' => 'text', 'required' => true, 'max' => 255, 'help' => 'Só a identificação da turma, ex.: A, B ou 601. A série já vem do campo acima.'],
+                    'turno' => ['label' => 'Turno', 'type' => 'select', 'options' => self::TURNOS, 'required' => true],
                 ],
+                'validate' => static function (array &$data, ?array $row): void {
+                    $serie = Db::value('SELECT descricao FROM series WHERE id = ?', [$data['serie_id']]);
+                    $data['nome'] = Turmas::semSerie((string) $data['nome'], $serie === null ? null : (string) $serie);
+                    $repetida = Db::value(
+                        'SELECT id FROM turmas WHERE escola_id = ? AND serie_id = ? AND nome = ? AND id <> ?',
+                        [$data['escola_id'], $data['serie_id'], $data['nome'], $row['id'] ?? 0]
+                    );
+                    if ($repetida !== null) {
+                        throw new FormError('Já existe a turma ' . Turmas::rotulo((string) $serie, (string) $data['nome']) . ' nesta escola.');
+                    }
+                },
             ],
 
             'alunos' => [
@@ -344,6 +364,11 @@ final class Resources
                         $data['pesquisador_id'] = $row === null ? $ctx->uid : (int) $row['pesquisador_id'];
                     } elseif (empty($data['pesquisador_id'])) {
                         $data['pesquisador_id'] = $row['pesquisador_id'] ?? $ctx->uid;
+                    }
+                },
+                'after_save' => static function (int $id, array $data, bool $created): void {
+                    if (!$created) {
+                        QuestionarioService::propagarEscola($id);
                     }
                 },
                 'actions' => [
@@ -426,26 +451,75 @@ final class Resources
                 'plural' => 'Perguntas',
                 'title' => "CONCAT(COALESCE(c.nome, ''), ' · ', LEFT(t.texto, 70))",
                 'join' => 'LEFT JOIN categorias c ON c.id = t.categoria_id',
-                'list' => ['texto', 'tipo', 'categoria_id', 'subcategoria_id', 'ordem', 'obrigatoria'],
+                'list' => ['texto', 'tipo', 'categoria_id', 'ordem', 'obrigatoria'],
                 'search' => ['texto'],
-                'derive_escola' => [['categoria_id', 'categorias']],
+                'order' => 't.categoria_id ASC, t.ordem ASC, t.id ASC',
+                'related_order' => 10,
+                'derive_escola' => [['questionario_id', 'questionarios'], ['categoria_id', 'categorias']],
                 'fields' => [
-                    'categoria_id' => ['label' => 'Categoria', 'type' => 'fk', 'ref' => 'categorias', 'required' => true],
+                    'questionario_id' => [
+                        'label' => 'Questionário', 'type' => 'fk', 'ref' => 'questionarios', 'virtual' => true, 'create_only' => true,
+                        'filter' => 'EXISTS (SELECT 1 FROM categorias f_c WHERE f_c.id = t.categoria_id AND f_c.questionario_id = ?)',
+                        'help' => 'A pergunta entra neste questionário.',
+                    ],
+                    'categoria_id' => [
+                        'label' => 'Categoria', 'type' => 'fk', 'ref' => 'categorias',
+                        'help' => 'Opcional: em branco, entra na primeira categoria do questionário (ou numa categoria "Geral", criada automaticamente).',
+                    ],
                     'subcategoria_id' => ['label' => 'Subcategoria', 'type' => 'fk', 'ref' => 'subcategorias'],
                     'tipo' => ['label' => 'Tipo', 'type' => 'select', 'options' => self::TIPOS_PERGUNTA, 'required' => true, 'default' => 'multipla_escolha'],
-                    'texto' => ['label' => 'Texto', 'type' => 'textarea', 'required' => true, 'display' => 'resumo'],
-                    'ordem' => $ordem,
-                    'obrigatoria' => ['label' => 'Obrigatória', 'type' => 'bool', 'default' => 0],
+                    'texto' => ['label' => 'Pergunta', 'type' => 'textarea', 'required' => true, 'display' => 'resumo'],
+                    'opcoes_texto' => [
+                        'label' => 'Opções de resposta', 'type' => 'textarea', 'virtual' => true, 'create_only' => true,
+                        'default' => "Nunca = 0\nÀs vezes = 1\nFrequentemente = 2\nSempre = 3",
+                        'help' => 'Para múltipla escolha: uma opção por linha, no formato "Texto = pontos". Depois dá para editar em Opções de resposta.',
+                    ],
+                    'ordem' => ['label' => 'Ordem', 'type' => 'int', 'help' => 'Em branco = no fim da categoria.'],
+                    'obrigatoria' => ['label' => 'Obrigatória', 'type' => 'bool', 'default' => 1],
                     'peso' => ['label' => 'Peso', 'type' => 'decimal', 'required' => true, 'default' => '1.00'],
                     'imagem' => ['label' => 'Imagem (URL)', 'type' => 'text', 'max' => 500],
                     'escola_id' => ['label' => 'Escola', 'type' => 'fk', 'ref' => 'escolas', 'form' => false],
                 ],
-                'validate' => static function (array &$data): void {
+                'validate' => static function (array &$data, ?array $row, Ctx $ctx, array $input): void {
+                    $questionario = !empty($data['questionario_id']) ? (int) $data['questionario_id'] : null;
+                    if (empty($data['categoria_id'])) {
+                        if ($questionario === null) {
+                            if ($row !== null) {
+                                throw new FormError('Informe a categoria.');
+                            }
+                            throw new FormError('Escolha o questionário (ou a categoria) da pergunta.');
+                        }
+                        $data['categoria_id'] = QuestionarioService::categoriaPadrao($questionario);
+                    } elseif ($questionario !== null && (int) Db::value('SELECT questionario_id FROM categorias WHERE id = ?', [$data['categoria_id']]) !== $questionario) {
+                        throw new FormError('A categoria escolhida não pertence a este questionário.');
+                    }
+                    $data['escola_id'] = (int) Db::value('SELECT escola_id FROM categorias WHERE id = ?', [$data['categoria_id']]);
                     if (!empty($data['subcategoria_id'])) {
                         $categoria = Db::value('SELECT categoria_id FROM subcategorias WHERE id = ?', [$data['subcategoria_id']]);
                         if ((int) $categoria !== (int) $data['categoria_id']) {
                             throw new FormError('A subcategoria não pertence à categoria escolhida.');
                         }
+                    }
+                    if ($data['ordem'] === null) {
+                        $data['ordem'] = $row !== null && (int) $row['categoria_id'] === (int) $data['categoria_id']
+                            ? (int) $row['ordem']
+                            : (int) Db::value('SELECT COALESCE(MAX(ordem), 0) + 1 FROM perguntas WHERE categoria_id = ?', [$data['categoria_id']]);
+                    }
+                    $comOpcoes = $row === null && $data['tipo'] === 'multipla_escolha' && array_key_exists('opcoes_texto', $input);
+                    if ($comOpcoes && count(self::opcoesDoTexto((string) ($data['opcoes_texto'] ?? ''))) < 2) {
+                        throw new FormError('Informe ao menos duas opções de resposta, uma por linha (ex.: "Nunca = 0").');
+                    }
+                },
+                'after_save' => static function (int $id, array $data, bool $created): void {
+                    if (!$created || $data['tipo'] !== 'multipla_escolha') {
+                        return;
+                    }
+                    $now = Db::now();
+                    foreach (self::opcoesDoTexto((string) ($data['opcoes_texto'] ?? '')) as $i => [$descricao, $pontos]) {
+                        Db::insert('opcoes_resposta', [
+                            'pergunta_id' => $id, 'escola_id' => $data['escola_id'], 'descricao' => $descricao,
+                            'pontuacao' => $pontos, 'ordem' => $i + 1, 'created_at' => $now, 'updated_at' => $now,
+                        ]);
                     }
                 },
             ],
@@ -533,7 +607,7 @@ final class Resources
                     self::exigirMesmaEscola('turmas', $data['turma_id'] ?? null, $escola, 'A turma não pertence à escola escolhida.');
                     self::exigirMesmaEscola('alunos', $data['aluno_id'] ?? null, $escola, 'O aluno não pertence à escola escolhida.');
                     if ($data['status'] === 'ativa' && QuestionarioService::totalPerguntas((int) $data['questionario_id']) === 0) {
-                        throw new FormError('Este questionário ainda não tem perguntas. Cadastre ao menos uma pergunta antes de liberar a aplicação.');
+                        throw new FormError(QuestionarioService::mensagemSemPerguntas((int) $data['questionario_id']));
                     }
                     $codigo = preg_replace('/[^A-Z0-9]/', '', strtoupper((string) ($data['codigo_sala'] ?? '')));
                     $data['codigo_sala'] = $codigo === '' ? CodigoSala::gerar() : $codigo;
@@ -662,5 +736,31 @@ final class Resources
         if ((int) $escola !== $escolaId) {
             throw new FormError($mensagem);
         }
+    }
+
+    /**
+     * Opções digitadas uma por linha: "Nunca = 0", "Às vezes; 1" ou só "Sempre" (pontos = posição, a partir de 0).
+     *
+     * @return list<array{0: string, 1: int}>
+     */
+    public static function opcoesDoTexto(string $texto): array
+    {
+        $opcoes = [];
+        foreach (preg_split('/\R/u', $texto) ?: [] as $linha) {
+            $linha = trim($linha);
+            if ($linha === '') {
+                continue;
+            }
+            $pontos = count($opcoes);
+            if (preg_match('/^(.*?)\s*[=;|:]\s*(-?\d+)\s*(pts?|pontos?)?$/iu', $linha, $m) && trim($m[1]) !== '') {
+                $linha = trim($m[1]);
+                $pontos = (int) $m[2];
+            }
+            if (Str::len($linha) > 500) {
+                throw new FormError('Cada opção de resposta pode ter no máximo 500 caracteres.');
+            }
+            $opcoes[] = [$linha, $pontos];
+        }
+        return $opcoes;
     }
 }

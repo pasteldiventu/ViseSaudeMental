@@ -8,6 +8,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../data/repositories/cadastros_repository.dart';
 import '../../../providers/app_providers.dart';
 import '../../common/ui_kit.dart';
+import '../escola_foco.dart';
 import 'cadastro_detalhe_screen.dart';
 import 'cadastro_form_screen.dart';
 import 'cadastro_icons.dart';
@@ -32,7 +33,10 @@ class CadastroListaScreen extends ConsumerStatefulWidget {
 class _CadastroListaScreenState extends ConsumerState<CadastroListaScreen> {
   final _busca = TextEditingController();
   Timer? _debounce;
-  late Map<String, String> _filtros = Map.of(widget.filtros);
+  late Map<String, String> _filtros = {
+    if (_segueFoco) 'escola_id': ?ref.read(escolaFocoProvider)?.id.toString(),
+    ...widget.filtros,
+  };
   List<RegistroResumo> _registros = const [];
   List<FiltroAtivo> _filtrosAtivos = const [];
   int _page = 1;
@@ -55,6 +59,19 @@ class _CadastroListaScreenState extends ConsumerState<CadastroListaScreen> {
     super.dispose();
   }
 
+  /// Lista aberta pelo menu (sem filtro de outro cadastro) segue a escola em foco.
+  bool get _segueFoco =>
+      widget.meta.filtraEscola &&
+      widget.filtros.keys.every((campo) => campo == 'escola_id');
+
+  void _acompanharFoco(EscolaFoco? foco) {
+    if (!_segueFoco) return;
+    final novo = foco == null ? null : '${foco.id}';
+    if (novo == _filtros['escola_id']) return;
+    _filtros = {...Map.of(_filtros)..remove('escola_id'), 'escola_id': ?novo};
+    _carregar();
+  }
+
   Future<void> _carregar() async {
     setState(() {
       _carregando = true;
@@ -73,6 +90,13 @@ class _CadastroListaScreenState extends ConsumerState<CadastroListaScreen> {
         _total = pagina.total;
         _carregando = false;
       });
+      if (widget.meta.filtraEscola) {
+        for (final filtro in pagina.filtros) {
+          if (filtro.campo == 'escola_id') {
+            focarEscola(ref, filtro.valor, filtro.titulo);
+          }
+        }
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -140,6 +164,7 @@ class _CadastroListaScreenState extends ConsumerState<CadastroListaScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(escolaFocoProvider, (_, foco) => _acompanharFoco(foco));
     final meta = widget.meta;
     return Scaffold(
       drawer: widget.drawer,
@@ -205,6 +230,9 @@ class _CadastroListaScreenState extends ConsumerState<CadastroListaScreen> {
                       ),
                       onDeleted: () {
                         _filtros = Map.of(_filtros)..remove(filtro.campo);
+                        if (filtro.campo == 'escola_id') {
+                          limparFocoEscola(ref);
+                        }
                         _carregar();
                       },
                     ),

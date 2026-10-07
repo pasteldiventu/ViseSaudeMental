@@ -4,11 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_theme.dart';
 
 class AvatarBubble extends StatelessWidget {
-  const AvatarBubble({
-    super.key,
-    required this.message,
-    this.large = false,
-  });
+  const AvatarBubble({super.key, required this.message, this.large = false});
 
   final String message;
   final bool large;

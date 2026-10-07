@@ -8,6 +8,7 @@ import '../../providers/app_providers.dart';
 import '../common/brand_and_progress.dart';
 import 'cadastros/cadastro_icons.dart';
 import 'cadastros/cadastro_lista_screen.dart';
+import 'escola_foco.dart';
 import 'painel/importar_screen.dart';
 import 'painel/painel_screen.dart';
 import 'painel/relatorios_screen.dart';
@@ -43,6 +44,8 @@ class _StaffShellState extends ConsumerState<StaffShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Mantém a escola em foco viva enquanto a área da equipe estiver aberta.
+    ref.watch(escolaFocoProvider);
     final menu = ref.watch(cadastrosMenuProvider);
     final podeImportar =
         ref.watch(tiposImportacaoProvider).valueOrNull?.isNotEmpty ?? false;
@@ -171,7 +174,12 @@ class _MenuLateral extends ConsumerWidget {
             ],
           ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 14),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 4),
+          child: SeletorEscolaFoco(),
+        ),
+        const SizedBox(height: 10),
         _Item(
           icone: Icons.meeting_room_outlined,
           label: 'Salas',

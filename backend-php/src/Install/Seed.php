@@ -35,8 +35,7 @@ final class Seed
             self::vinculo($professor, $escola, 'professor');
 
             $serie = self::firstOrCreate('series', ['descricao' => '9º Ano'], []);
-            $turma = self::firstOrCreate('turmas', ['escola_id' => $escola, 'nome' => '9º Ano A'], [
-                'serie_id' => $serie,
+            $turma = self::firstOrCreate('turmas', ['escola_id' => $escola, 'serie_id' => $serie, 'nome' => 'A'], [
                 'turno' => 'matutino',
             ]);
             self::firstOrCreate('professor_turma', ['user_id' => $professor, 'turma_id' => $turma], []);
@@ -129,9 +128,9 @@ final class Seed
         return Db::transaction(static function () use ($quantidade): int {
             $escola = (int) Db::value("SELECT id FROM escolas WHERE inep = '00000001'");
             $turmas = [];
-            foreach ([['9º Ano', '9º Ano A', 'matutino'], ['9º Ano', '9º Ano B', 'vespertino'], ['8º Ano', '8º Ano A', 'matutino'], ['8º Ano', '8º Ano B', 'vespertino']] as [$serie, $nome, $turno]) {
+            foreach ([['9º Ano', 'A', 'matutino'], ['9º Ano', 'B', 'vespertino'], ['8º Ano', 'A', 'matutino'], ['8º Ano', 'B', 'vespertino']] as [$serie, $nome, $turno]) {
                 $serieId = self::firstOrCreate('series', ['descricao' => $serie], []);
-                $turmas[] = self::firstOrCreate('turmas', ['escola_id' => $escola, 'nome' => $nome], ['serie_id' => $serieId, 'turno' => $turno]);
+                $turmas[] = self::firstOrCreate('turmas', ['escola_id' => $escola, 'serie_id' => $serieId, 'nome' => $nome], ['turno' => $turno]);
             }
             $nomes = ['Ana', 'Bruno', 'Carla', 'Diego', 'Eduarda', 'Felipe', 'Gabriela', 'Henrique', 'Isabela', 'João', 'Larissa', 'Mateus', 'Natália', 'Otávio', 'Paula', 'Rafael', 'Sofia', 'Thiago', 'Valentina', 'Yuri'];
             $sobrenomes = ['Silva', 'Souza', 'Oliveira', 'Santos', 'Lima', 'Pereira', 'Costa', 'Almeida', 'Ribeiro', 'Carvalho'];

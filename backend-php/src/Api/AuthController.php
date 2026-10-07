@@ -49,7 +49,7 @@ final class AuthController
     }
 
     /** @param array<string, mixed> $aluno */
-    private static function alunoMe(array $aluno): array
+    public static function alunoMe(array $aluno): array
     {
         return [
             'id' => (int) $aluno['id'],

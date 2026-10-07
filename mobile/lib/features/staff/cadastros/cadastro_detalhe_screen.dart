@@ -8,6 +8,7 @@ import '../../../data/repositories/staff_repository.dart';
 import '../../../providers/app_providers.dart';
 import '../compartilhar_sala.dart';
 import '../criar_sala_screen.dart';
+import '../escola_foco.dart';
 import 'cadastro_form_screen.dart';
 import 'cadastro_icons.dart';
 import 'cadastro_lista_screen.dart';
@@ -42,7 +43,9 @@ class _CadastroDetalheScreenState extends ConsumerState<CadastroDetalheScreen> {
 
   Future<void> _liberarEmSala() async {
     final sala = await Navigator.of(context).push<SalaResumo>(
-      MaterialPageRoute(builder: (_) => CriarSalaScreen(questionarioId: widget.id)),
+      MaterialPageRoute(
+        builder: (_) => CriarSalaScreen(questionarioId: widget.id),
+      ),
     );
     if (sala == null || !mounted) return;
     await mostrarCompartilharSala(context, sala);
@@ -56,6 +59,7 @@ class _CadastroDetalheScreenState extends ConsumerState<CadastroDetalheScreen> {
         _registro = registro;
         _erro = null;
       });
+      _focarEscolaDoRegistro(registro);
     } catch (error) {
       if (!mounted) return;
       setState(
@@ -64,6 +68,23 @@ class _CadastroDetalheScreenState extends ConsumerState<CadastroDetalheScreen> {
           'Não foi possível carregar o registro.',
         ),
       );
+    }
+  }
+
+  /// Abrir uma escola (ou algo de uma escola) põe essa escola em foco nas listas.
+  void _focarEscolaDoRegistro(RegistroDetalhe registro) {
+    if (registro.key == 'escolas') {
+      final nome = registro.campos.where((c) => c.name == 'nome').firstOrNull;
+      focarEscola(ref, registro.id, nome?.valor ?? registro.titulo);
+      return;
+    }
+    for (final campo in registro.campos) {
+      if (campo.name == 'escola_id' &&
+          campo.linkKey == 'escolas' &&
+          campo.linkId != null) {
+        focarEscola(ref, campo.linkId!, campo.valor);
+        return;
+      }
     }
   }
 

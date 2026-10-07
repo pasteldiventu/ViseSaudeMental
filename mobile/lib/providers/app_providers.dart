@@ -66,6 +66,20 @@ final opcoesRelatorioProvider = FutureProvider.autoDispose<OpcoesRelatorio>(
   (ref) => ref.watch(painelRepositoryProvider).opcoes(),
 );
 
+class EscolaFoco {
+  const EscolaFoco(this.id, this.nome);
+
+  final int id;
+  final String nome;
+}
+
+/// Escola escolhida na área da equipe: listas, novos cadastros, painel e
+/// relatórios passam a mostrar só ela até o usuário trocar ou limpar.
+/// A área da equipe observa o provider enquanto está aberta; ao sair, ele zera.
+final escolaFocoProvider = StateProvider.autoDispose<EscolaFoco?>(
+  (ref) => null,
+);
+
 /// Tipos de planilha que o perfil logado pode importar (vazio = sem importação).
 final tiposImportacaoProvider =
     FutureProvider.autoDispose<List<TipoImportacao>>(
@@ -256,6 +270,13 @@ class AppController extends ChangeNotifier {
         erro = 'Sala inválida.';
         return false;
       }
+      final novoToken = response.data?['token']?.toString();
+      if (novoToken != null && novoToken.isNotEmpty) {
+        // Mesmo aluno com outro cadastro (escola da sala): a sessão passa a ser dele.
+        await _sincronizarTudo();
+        await auth.trocarSessao(novoToken, response.data?['aluno']);
+        await _carregarTermoAceito();
+      }
       await quiz.atualizarCache();
       codigoSalaPendente = null;
       await abrirAplicacao(id);
@@ -263,9 +284,16 @@ class AppController extends ChangeNotifier {
     } on DioException catch (error, stack) {
       debugPrint('Falha ao entrar na sala: $error\n$stack');
       erro = switch (error.response?.statusCode) {
-        404 => 'Sala não encontrada ou você não faz parte do público.',
-        401 => 'Sua sessão expirou. Saia e entre novamente com CPF e data de nascimento.',
-        _ => mensagemDeErro(error, 'Não foi possível entrar na sala. Verifique a conexão.'),
+        404 => mensagemDeErro(
+          error,
+          'Sala não encontrada ou você não faz parte do público.',
+        ),
+        401 =>
+          'Sua sessão expirou. Saia e entre novamente com CPF e data de nascimento.',
+        _ => mensagemDeErro(
+          error,
+          'Não foi possível entrar na sala. Verifique a conexão.',
+        ),
       };
       return false;
     } catch (error, stack) {
@@ -283,9 +311,7 @@ class AppController extends ChangeNotifier {
       await staffRepo.logout();
     } else {
       // Sem o token, respostas ainda não enviadas não poderiam mais ser sincronizadas.
-      for (final app in await database.listarAplicacoes()) {
-        await sync.sincronizar(app.id).catchError((_) {});
-      }
+      await _sincronizarTudo();
       await auth.logout();
     }
     await auth.storage.delete(key: ApiClient.sessionModeKey);
@@ -298,6 +324,12 @@ class AppController extends ChangeNotifier {
     codigoSalaPendente = null;
     erro = null;
     notifyListeners();
+  }
+
+  Future<void> _sincronizarTudo() async {
+    for (final app in await database.listarAplicacoes()) {
+      await sync.sincronizar(app.id).catchError((_) {});
+    }
   }
 
   /// Chamado ao abrir uma tela de login, para não exibir erro de outra área.

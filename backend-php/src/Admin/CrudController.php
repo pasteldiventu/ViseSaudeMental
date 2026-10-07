@@ -21,7 +21,7 @@ final class CrudController
         $res = self::resource($p, $ctx);
         $key = $res['key'];
 
-        $found = Records::search($res, $ctx, $request->query);
+        $found = Records::search($res, $ctx, self::query($res, $ctx, $request->query));
         ['rows' => $rows, 'total' => $total, 'page' => $page, 'pages' => $pages, 'filters' => $filters, 'q' => $q, 'sort' => $sort, 'dir' => $dir] = $found;
         $titles = Records::fkTitles($res, $rows, $res['list']);
         $writable = Records::writable($res, $ctx);
@@ -46,9 +46,10 @@ final class CrudController
             $html .= '<div class="filters">';
             foreach ($filters as $field => $value) {
                 $ref = $res['fields'][$field]['ref'];
+                $semFiltro = array_diff_key($baseQuery, [$field => 1]) + ($field === 'escola_id' ? ['escola_id' => '0'] : []);
                 $html .= '<span class="chip">' . View::e($res['fields'][$field]['label']) . ': '
                     . View::e(Resources::title($ref, $value))
-                    . ' <a href="' . View::e(Url::to("/admin/$key", array_diff_key($baseQuery, [$field => 1]))) . '" title="Remover filtro">×</a></span>';
+                    . ' <a href="' . View::e(Url::to("/admin/$key", $semFiltro)) . '" title="' . ($field === 'escola_id' ? 'Ver todas as escolas' : 'Remover filtro') . '">×</a></span>';
             }
             $html .= '</div>';
         }
@@ -130,7 +131,7 @@ final class CrudController
         $ctx = self::ctx($request);
         $res = self::resource($p, $ctx);
         $limite = 20000;
-        $found = Records::search($res, $ctx, array_merge($request->query, ['page' => '1']), $limite);
+        $found = Records::search($res, $ctx, array_merge(self::query($res, $ctx, $request->query), ['page' => '1']), $limite);
         $columns = array_keys(array_filter($res['fields'], static fn (array $f) => empty($f['virtual']) && $f['type'] !== 'password'));
         $titles = Records::fkTitles($res, $found['rows'], $columns);
 
@@ -172,6 +173,10 @@ final class CrudController
         $key = $res['key'];
         $row = Records::findRow($res, (int) $p['id'], $ctx, false);
         $titles = Records::fkTitles($res, [$row], array_keys($res['fields']));
+        $escolaDoRegistro = $key === 'escolas' ? (int) $row['id'] : (int) ($row['escola_id'] ?? 0);
+        if ($escolaDoRegistro > 0) {
+            Auth::focar($ctx, $escolaDoRegistro);
+        }
 
         $html = '<div class="card"><dl class="details">';
         foreach ($res['fields'] as $name => $field) {
@@ -214,7 +219,34 @@ final class CrudController
                 $values[$name] = $field['default'];
             }
         }
+        $foco = Auth::escolaFoco($ctx);
+        if ($foco !== null) {
+            foreach (Records::formFields($res, $ctx, null) as $name => $field) {
+                if ($field['type'] === 'fk' && $field['ref'] === 'escolas' && !isset($values[$name])) {
+                    $values[$name] = (string) $foco;
+                    break;
+                }
+            }
+        }
         return self::form($ctx, $res, null, $values);
+    }
+
+    /**
+     * Lista de um cadastro com escola segue a escola em foco na sessão.
+     *
+     * @param array<string, mixed> $query
+     * @return array<string, mixed>
+     */
+    private static function query(array $res, Ctx $ctx, array $query): array
+    {
+        $campo = $res['fields']['escola_id'] ?? null;
+        if ($campo === null || !Records::filterable($campo) || ($campo['ref'] ?? '') !== 'escolas') {
+            return $query;
+        }
+        if (!array_key_exists('escola_id', $query) && Records::filters($res, $query) !== []) {
+            return $query;
+        }
+        return Auth::comFoco($ctx, $query);
     }
 
     /** @param array<string, string> $p */

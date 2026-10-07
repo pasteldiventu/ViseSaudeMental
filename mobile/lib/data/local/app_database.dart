@@ -72,22 +72,19 @@ class AppDatabase extends _$AppDatabase {
   Future<({int total, int respondidas})> contagemProgresso(
     int aplicacaoId,
   ) async {
-    final categorias =
-        await (select(cachedCategoria)
-              ..where((t) => t.aplicacaoId.equals(aplicacaoId)))
-            .get();
+    final categorias = await (select(
+      cachedCategoria,
+    )..where((t) => t.aplicacaoId.equals(aplicacaoId))).get();
     var total = 0;
     for (final categoria in categorias) {
-      final perguntas =
-          await (select(cachedPergunta)
-                ..where((t) => t.categoriaId.equals(categoria.id)))
-              .get();
+      final perguntas = await (select(
+        cachedPergunta,
+      )..where((t) => t.categoriaId.equals(categoria.id))).get();
       total += perguntas.length;
     }
-    final respondidas =
-        await (select(localProgress)
-              ..where((t) => t.aplicacaoId.equals(aplicacaoId)))
-            .get();
+    final respondidas = await (select(
+      localProgress,
+    )..where((t) => t.aplicacaoId.equals(aplicacaoId))).get();
     return (total: total, respondidas: respondidas.length);
   }
 
@@ -122,7 +119,11 @@ class AppDatabase extends _$AppDatabase {
     await into(cachedAplicacao).insertOnConflictUpdate(aplicacao);
     await batch((batch) {
       batch.insertAll(cachedCategoria, categorias);
-      batch.insertAll(cachedPergunta, perguntas, mode: InsertMode.insertOrReplace);
+      batch.insertAll(
+        cachedPergunta,
+        perguntas,
+        mode: InsertMode.insertOrReplace,
+      );
       batch.insertAll(cachedOpcao, opcoes, mode: InsertMode.insertOrReplace);
     });
   });
@@ -174,15 +175,26 @@ class AppDatabase extends _$AppDatabase {
   });
 
   /// Remove salas que o servidor não lista mais (encerradas), exceto as com respostas a enviar.
-  Future<void> removerAplicacoesAusentes(Set<int> ativas) => transaction(() async {
-    for (final app in await listarAplicacoes()) {
-      if (ativas.contains(app.id) || (await respostasPendentes(app.id)).isNotEmpty) continue;
-      await (delete(cachedCategoria)..where((t) => t.aplicacaoId.equals(app.id))).go();
-      await (delete(localProgress)..where((t) => t.aplicacaoId.equals(app.id))).go();
-      await (delete(outboxResposta)..where((t) => t.aplicacaoId.equals(app.id))).go();
-      await (delete(cachedAplicacao)..where((t) => t.id.equals(app.id))).go();
-    }
-  });
+  Future<void> removerAplicacoesAusentes(Set<int> ativas) => transaction(
+    () async {
+      for (final app in await listarAplicacoes()) {
+        if (ativas.contains(app.id) ||
+            (await respostasPendentes(app.id)).isNotEmpty) {
+          continue;
+        }
+        await (delete(
+          cachedCategoria,
+        )..where((t) => t.aplicacaoId.equals(app.id))).go();
+        await (delete(
+          localProgress,
+        )..where((t) => t.aplicacaoId.equals(app.id))).go();
+        await (delete(
+          outboxResposta,
+        )..where((t) => t.aplicacaoId.equals(app.id))).go();
+        await (delete(cachedAplicacao)..where((t) => t.id.equals(app.id))).go();
+      }
+    },
+  );
 
   Future<void> limparRespostas(int aplicacaoId) => transaction(() async {
     await (delete(

@@ -8,6 +8,7 @@ use RuntimeException;
 use Vise\Db;
 use Vise\Services\ResultadoService;
 use Vise\Support\Str;
+use Vise\Support\Turmas;
 
 /**
  * Importa o backup SQL do sistema anterior (tabelas aluno, escola, categoria_pergunta, pergunta…).
@@ -327,20 +328,26 @@ final class ImportLegado
         $escola = $this->escola[$escolaAntiga];
         $grupo = $grupos["$escolaAntiga:$turmaAntiga"];
         $serie = $series[self::maisComum($grupo['series'])] ?? 'Série não informada';
-        $nome = $nomesTurma[$turmaAntiga] ?? "$serie - turma $turmaAntiga";
+        $nome = "Turma $turmaAntiga";
+        if (isset($nomesTurma[$turmaAntiga])) {
+            [$serieDoNome, $nome] = Turmas::separar($nomesTurma[$turmaAntiga]);
+            $serie = $serieDoNome ?? $serie;
+            $nome = $nome === '' ? $nomesTurma[$turmaAntiga] : $nome;
+        }
         return $this->obter("turma:$escolaAntiga:$turmaAntiga", 'turmas', function () use ($escola, $nome, $serie, $grupo, $nomesTurma, $turmaAntiga): int {
-            $existente = Db::value('SELECT id FROM turmas WHERE escola_id = ? AND nome = ?', [$escola, $nome]);
+            $serieId = $this->serie($serie);
+            $existente = Db::value('SELECT id FROM turmas WHERE escola_id = ? AND serie_id = ? AND nome = ?', [$escola, $serieId, $nome]);
             if ($existente !== null) {
                 return (int) $existente;
             }
             if (!isset($nomesTurma[$turmaAntiga])) {
-                $this->contar('Turmas sem nome no backup (criadas como "série - turma N"; renomeie no painel)');
+                $this->contar('Turmas sem nome no backup (criadas como "Turma N"; renomeie no painel)');
             }
             $this->contar('Turmas criadas');
             $now = Db::now();
             return Db::insert('turmas', [
                 'nome' => $nome,
-                'serie_id' => $this->serie($serie),
+                'serie_id' => $serieId,
                 'turno' => self::maisComum($grupo['turnos']),
                 'escola_id' => $escola,
                 'created_at' => $now,
@@ -351,12 +358,7 @@ final class ImportLegado
 
     private function serie(string $descricao): int
     {
-        $id = Db::value('SELECT id FROM series WHERE descricao = ?', [$descricao]);
-        if ($id !== null) {
-            return (int) $id;
-        }
-        $now = Db::now();
-        return Db::insert('series', ['descricao' => $descricao, 'created_at' => $now, 'updated_at' => $now]);
+        return Turmas::serieId($descricao);
     }
 
     // ------------------------------------------------------------ questionários

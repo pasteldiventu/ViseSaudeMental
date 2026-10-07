@@ -30,6 +30,24 @@ final class AdminController
         return Response::redirect(Url::to('/admin'));
     }
 
+    /** Troca a escola em foco e volta para a lista/página de onde o usuário veio. */
+    public static function foco(Request $request): Response
+    {
+        $ctx = Auth::context($request);
+        if ($ctx === null) {
+            return Auth::redirectToLogin();
+        }
+        $escola = (string) ($request->query['escola_id'] ?? '');
+        Auth::focar($ctx, ctype_digit($escola) ? (int) $escola : null);
+        $voltar = (string) ($request->query['voltar'] ?? '');
+        $destino = match (true) {
+            in_array($voltar, ['relatorios', 'importar'], true) => '/admin/' . $voltar,
+            Resources::get($voltar) !== null => '/admin/' . $voltar,
+            default => '/admin',
+        };
+        return Response::redirect(Url::to($destino));
+    }
+
     public static function logout(Request $request): Response
     {
         Auth::logout($request);

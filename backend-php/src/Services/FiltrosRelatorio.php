@@ -118,7 +118,7 @@ final class FiltrosRelatorio
             $itens[] = ['Escola', $nome('SELECT nome FROM escolas WHERE id = ?', $this->escolaId)];
         }
         if ($this->turmaId !== null) {
-            $itens[] = ['Turma', $nome('SELECT nome FROM turmas WHERE id = ?', $this->turmaId)];
+            $itens[] = ['Turma', $nome("SELECT CONCAT_WS(' ', s.descricao, t.nome) FROM turmas t LEFT JOIN series s ON s.id = t.serie_id WHERE t.id = ?", $this->turmaId)];
         }
         if ($this->serieId !== null) {
             $itens[] = ['Série', $nome('SELECT descricao FROM series WHERE id = ?', $this->serieId)];

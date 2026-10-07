@@ -51,6 +51,7 @@ class CadastroMeta {
     required this.buscaLabel,
     required this.colunas,
     required this.acoes,
+    this.filtraEscola = false,
   });
 
   factory CadastroMeta.fromJson(Map<String, dynamic> json) => CadastroMeta(
@@ -63,6 +64,7 @@ class CadastroMeta {
     buscaLabel: json['busca_label']?.toString() ?? '',
     colunas: _strings(json['colunas']),
     acoes: _maps(json['acoes']).map(AcaoMeta.fromJson).toList(),
+    filtraEscola: json['filtra_escola'] == true,
   );
 
   final String key;
@@ -74,6 +76,9 @@ class CadastroMeta {
   final String buscaLabel;
   final List<String> colunas;
   final List<AcaoMeta> acoes;
+
+  /// A lista aceita o filtro `escola_id` (segue a escola em foco).
+  final bool filtraEscola;
 }
 
 class MenuCadastros {

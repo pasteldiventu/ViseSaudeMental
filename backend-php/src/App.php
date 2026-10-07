@@ -81,6 +81,7 @@ final class App
         $r->get('/admin/login', [AdminController::class, 'loginForm']);
         $r->post('/admin/login', [AdminController::class, 'login']);
         $r->get('/admin/logout', [AdminController::class, 'logout']);
+        $r->get('/admin/foco', [AdminController::class, 'foco']);
         $r->get('/admin/relatorios', [PainelController::class, 'relatorios']);
         $r->get('/admin/relatorios/exportar', [PainelController::class, 'exportar']);
         $r->get('/admin/importar', [PainelController::class, 'importarForm']);
