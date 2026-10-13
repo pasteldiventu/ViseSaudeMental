@@ -1,0 +1,14 @@
+{
+  "name": "vise-docs-tools",
+  "private": true,
+  "type": "module",
+  "description": "Gera docs/DOCUMENTACAO_VISE.pdf a partir do Markdown e as capturas de tela em docs/img",
+  "scripts": {
+    "pdf": "node gerar-pdf.mjs",
+    "capturas": "node capturas.mjs"
+  },
+  "dependencies": {
+    "marked": "^15.0.0",
+    "puppeteer-core": "^23.0.0"
+  }
+}

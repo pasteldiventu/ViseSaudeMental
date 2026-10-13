@@ -15,3 +15,5 @@ mobile/build/
 *.apk
 .idea/
 .vscode/
+docs/tools/node_modules/
+docs/tools/.documentacao.html

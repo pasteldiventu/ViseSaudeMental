@@ -29,9 +29,12 @@ Sempre use `shorebird release` (não só `flutter build`) para o AAB/APK que for
 ```bash
 cd mobile
 
-# Exemplo com API de produção (obrigatório repetir o MESMO dart-define no patch)
+# Sem dart-define o release já usa a produção (https://visemt.com.br/api/api/v1)
+shorebird release android
+
+# Outro servidor: repita o MESMO dart-define no patch
 shorebird release android -- \
-  --dart-define=API_BASE_URL=https://api.saudeemmovimentonaescola.com.br/api/v1
+  --dart-define=API_BASE_URL=https://seu-dominio/api/v1
 ```
 
 Artefato típico: `build/app/outputs/bundle/release/app-release.aab`  
@@ -44,8 +47,8 @@ Depois de mudar **só Dart** (sem nativo novo, sem asset novo obrigatório, sem 
 ```bash
 cd mobile
 
-shorebird patch android -- \
-  --dart-define=API_BASE_URL=https://api.saudeemmovimentonaescola.com.br/api/v1
+shorebird patch android
+# ou, se o release usou outro servidor: shorebird patch android -- --dart-define=API_BASE_URL=https://seu-dominio/api/v1
 ```
 
 O patch mira a release correspondente (versão em `pubspec.yaml`, ex. `1.0.0+1`).  
@@ -60,8 +63,7 @@ Usuários baixam em background; com `auto_update` padrão, o patch entra no **pr
 ## Staging (opcional)
 
 ```bash
-shorebird patch android --track staging -- \
-  --dart-define=API_BASE_URL=https://api.saudeemmovimentonaescola.com.br/api/v1
+shorebird patch android --track staging
 ```
 
 Para forçar download manual / UI de “atualizar”, use `auto_update: false` em `shorebird.yaml` e `ShorebirdUpdater` (já no `pubspec`).

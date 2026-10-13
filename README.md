@@ -6,7 +6,7 @@ Sistema de triagem de saúde mental em escolas. O **aluno** responde questionár
 |---|---|---|
 | Backend: API REST + painel web (CMS) | [`backend-php/`](backend-php) | PHP 8 puro (sem Composer/framework) + MySQL |
 | App do aluno e da equipe (Android + Web) | [`mobile/`](mobile) | Flutter, Riverpod, Dio, Drift (SQLite/IndexedDB) |
-| Documentação | [`docs/`](docs) | OpenAPI, sprints, spec de produto, Shorebird |
+| Documentação | [`docs/`](docs) | [Documentação técnica e funcional](docs/DOCUMENTACAO_VISE.md) ([PDF](docs/DOCUMENTACAO_VISE.pdf)), OpenAPI, sprints, Shorebird |
 
 **Produção:** painel em <https://visemt.com.br/api/admin> · API em `https://visemt.com.br/api/api/v1` (o backend está na subpasta `/api` do domínio). O APK de release já aponta para esse endereço.
 
@@ -31,7 +31,8 @@ mobile/
   lib/features/        telas: entrada, login, termo, avatar, categorias, perguntas, área da equipe
   lib/providers/       estado do app (AppController)
   test/                testes de widget e de repositório
-docs/                  openapi.yaml, SPRINTS.md, Doc_Refatoracao_SMD.pdf, shorebird.md, alunos_exemplo.csv
+docs/                  DOCUMENTACAO_VISE.md/.pdf, img/ (capturas), tools/ (gera PDF e capturas),
+                       openapi.yaml, SPRINTS.md, Doc_Refatoracao_SMD.pdf, shorebird.md, alunos_exemplo.csv
 docker-compose.yml     MySQL 8 + PHP 8.2/Apache para desenvolvimento
 ```
 
@@ -190,6 +191,7 @@ cd mobile && flutter analyze && flutter test
 
 ## Documentação e planejamento
 
+- **Documentação técnica e funcional completa:** [`docs/DOCUMENTACAO_VISE.md`](docs/DOCUMENTACAO_VISE.md) e [`docs/DOCUMENTACAO_VISE.pdf`](docs/DOCUMENTACAO_VISE.pdf) — arquitetura, API, banco, regras de negócio, app, painel, deploy, segurança/LGPD, limitações, roadmap e solução de problemas. Para regenerar o PDF: `cd docs/tools && npm install && node gerar-pdf.mjs`.
 - Backlog e sprints: [`docs/SPRINTS.md`](docs/SPRINTS.md)
 - Spec de produto: [`docs/Doc_Refatoracao_SMD.pdf`](docs/Doc_Refatoracao_SMD.pdf)
 - Arquitetura original: [`arquitetura_vise_sma_ccfc2ae7.plan.md`](arquitetura_vise_sma_ccfc2ae7.plan.md)
