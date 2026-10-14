@@ -12,7 +12,7 @@ use Vise\Support\Tempo;
 /** Recorte usado pelo painel e pelos relatórios. Datas são locais (APP_TIMEZONE), no formato AAAA-MM-DD. */
 final class FiltrosRelatorio
 {
-    public const PERIODOS = ['7' => 'Últimos 7 dias', '30' => 'Últimos 30 dias', '90' => 'Últimos 90 dias', '365' => 'Últimos 12 meses', 'tudo' => 'Todo o período'];
+    public const PERIODOS = ['tudo' => 'Todo o período', '7' => 'Últimos 7 dias', '30' => 'Últimos 30 dias', '90' => 'Últimos 90 dias', '365' => 'Últimos 12 meses'];
 
     public function __construct(
         public ?int $escolaId = null,
@@ -25,6 +25,7 @@ final class FiltrosRelatorio
         public ?string $inicio = null,
         public ?string $fim = null,
         public string $periodo = 'tudo',
+        public ?int $temaId = null,
     ) {
     }
 
@@ -56,7 +57,7 @@ final class FiltrosRelatorio
             [$inicio, $fim] = [$fim, $inicio];
         }
 
-        return new self($int('escola_id'), $int('turma_id'), $int('serie_id'), $turno, $sexo, $int('questionario_id'), $int('aplicacao_id'), $inicio, $fim, $periodo);
+        return new self($int('escola_id'), $int('turma_id'), $int('serie_id'), $turno, $sexo, $int('questionario_id'), $int('aplicacao_id'), $inicio, $fim, $periodo, $int('tema_id'));
     }
 
     /** Descarta ids que o usuário não enxerga (evita expor nomes alheios no cabeçalho do relatório). */
@@ -68,6 +69,11 @@ final class FiltrosRelatorio
         $this->serieId = $ok('series', $this->serieId);
         $this->questionarioId = $ok('questionarios', $this->questionarioId);
         $this->aplicacaoId = $ok('aplicacoes', $this->aplicacaoId);
+        $this->temaId = $ok('temas', $this->temaId);
+        if ($this->temaId !== null && $this->questionarioId !== null
+            && (int) Db::value('SELECT tema_id FROM questionarios WHERE id = ?', [$this->questionarioId]) !== $this->temaId) {
+            $this->questionarioId = null;
+        }
         return $this;
     }
 
@@ -75,7 +81,7 @@ final class FiltrosRelatorio
     public function query(): array
     {
         $q = [
-            'escola_id' => $this->escolaId, 'turma_id' => $this->turmaId, 'serie_id' => $this->serieId, 'turno' => $this->turno,
+            'tema_id' => $this->temaId, 'escola_id' => $this->escolaId, 'turma_id' => $this->turmaId, 'serie_id' => $this->serieId, 'turno' => $this->turno,
             'sexo' => $this->sexo, 'questionario_id' => $this->questionarioId, 'aplicacao_id' => $this->aplicacaoId, 'periodo' => $this->periodo,
         ];
         if ($this->periodo === 'personalizado') {
@@ -114,6 +120,9 @@ final class FiltrosRelatorio
     {
         $itens = [['Período', $this->periodoTexto()]];
         $nome = static fn (string $sql, int $id): string => (string) (Db::value($sql, [$id]) ?? '#' . $id);
+        if ($this->temaId !== null) {
+            $itens[] = ['Tema', self::nomeTema($this->temaId)];
+        }
         if ($this->escolaId !== null) {
             $itens[] = ['Escola', $nome('SELECT nome FROM escolas WHERE id = ?', $this->escolaId)];
         }
@@ -136,6 +145,12 @@ final class FiltrosRelatorio
             $itens[] = ['Aplicação', $nome("SELECT CONCAT('#', id, IF(codigo_sala IS NULL, '', CONCAT(' · sala ', codigo_sala))) FROM aplicacoes_questionario WHERE id = ?", $this->aplicacaoId)];
         }
         return $itens;
+    }
+
+    /** "Todos os temas" quando não há filtro de tema. */
+    public static function nomeTema(?int $temaId): string
+    {
+        return $temaId === null ? 'Todos os temas' : (string) (Db::value('SELECT nome FROM temas WHERE id = ?', [$temaId]) ?? '#' . $temaId);
     }
 
     private static function dataBr(?string $data): string

@@ -16,9 +16,12 @@ use Vise\Support\Turmas;
 /**
  * Definição declarativa dos cadastros do painel.
  *
- * Campo: label, type (text|email|textarea|int|decimal|bool|select|fk|date|datetime|password|json|color),
+ * Campo: label, type (text|email|textarea|int|decimal|bool|select|fk|date|datetime|password|json|color|checklist),
  * required, max, options (select), ref + strict (fk), form (false = só leitura), detail,
- * default, display (cpf|resumo), su_only, virtual (não é coluna), create_only, help, upper.
+ * default, display (cpf|resumo), su_only, virtual (não é coluna), create_only, help, upper,
+ * itens (checklist: fn(Ctx, ?row) => list<{valor, label, marcado, indisponivel}>), label_edicao ("{nome}" = nome do registro).
+ * Cadastro: options_where (filtra as opções de selects que apontam para ele),
+ * nullify (colunas que perdem a referência ao excluir, em vez de bloquear a exclusão).
  */
 final class Resources
 {
@@ -34,7 +37,7 @@ final class Resources
         'Relatórios e dados' => ['@relatorios', '@importar'],
         'Escolas e equipe' => ['escolas', 'usuarios', 'vinculos', 'professores-turmas'],
         'Turmas e alunos' => ['series', 'turmas', 'alunos'],
-        'Instrumentos' => ['questionarios', 'categorias', 'subcategorias', 'perguntas', 'opcoes', 'regras'],
+        'Instrumentos' => ['temas', 'questionarios', 'categorias', 'subcategorias', 'perguntas', 'opcoes', 'regras'],
         'Aplicação e dados' => ['aplicacoes', 'respostas', 'resultados', 'termos', 'avatares'],
     ];
 
@@ -95,6 +98,9 @@ final class Resources
             return [];
         }
         [$where, $params] = Scope::where($key, $ctx, $strict);
+        if (isset($res['options_where'])) {
+            $where .= ' AND ' . $res['options_where'];
+        }
         $rows = Db::all(
             "SELECT t.id, {$res['title']} AS titulo FROM `{$res['table']}` t {$res['join']} WHERE $where ORDER BY titulo LIMIT 2000",
             $params
@@ -339,6 +345,61 @@ final class Resources
                 },
             ],
 
+            'temas' => [
+                'table' => 'temas',
+                'perm' => 'tema',
+                'singular' => 'Tema',
+                'plural' => 'Temas',
+                'title' => "TRIM(CONCAT(COALESCE(t.emoji, ''), ' ', t.nome))",
+                'join' => '',
+                'list' => ['nome', 'emoji', 'cor', 'ativo'],
+                'search' => ['nome'],
+                'order' => 't.nome ASC',
+                'options_where' => 't.ativo = 1',
+                'nullify' => [['questionarios', 'tema_id']],
+                'fields' => [
+                    'nome' => ['label' => 'Nome', 'type' => 'text', 'required' => true, 'max' => 255, 'help' => 'Ex.: Saúde mental, Bem-estar, Alimentação. O painel mostra "Painel: {nome}".'],
+                    'descricao' => ['label' => 'Descrição', 'type' => 'textarea', 'help' => 'Aparece no cartão do tema na escolha do painel.'],
+                    'emoji' => ['label' => 'Ícone (emoji)', 'type' => 'text', 'max' => 50, 'help' => 'Ex.: 🧠 💚 🍎 🤝'],
+                    'cor' => ['label' => 'Cor', 'type' => 'color', 'max' => 30],
+                    'ativo' => ['label' => 'Ativo', 'type' => 'bool', 'default' => 1, 'help' => 'Temas inativos somem da escolha do painel e do cadastro de questionários.'],
+                    'questionarios' => [
+                        'label' => 'Atribuir questionários a este tema?', 'label_edicao' => 'Questionários do tema "{nome}"',
+                        'type' => 'checklist', 'virtual' => true,
+                        'help' => 'Marque os questionários deste tema. Os que já pertencem a outro tema ficam indisponíveis: para movê-los, troque o tema no cadastro do questionário.',
+                        'itens' => static fn (Ctx $ctx, ?array $row): array => self::questionariosParaTema($ctx, $row === null ? null : (int) $row['id']),
+                    ],
+                ],
+                'validate' => static function (array &$data, ?array $row): void {
+                    $ids = $data['questionarios'] ?? [];
+                    if ($ids === []) {
+                        return;
+                    }
+                    $ocupado = Db::one(
+                        'SELECT q.nome, q.versao, te.nome AS tema FROM questionarios q JOIN temas te ON te.id = q.tema_id
+                         WHERE q.id IN (' . Db::in($ids) . ') AND q.tema_id <> ? LIMIT 1',
+                        array_merge($ids, [$row['id'] ?? 0])
+                    );
+                    if ($ocupado !== null) {
+                        throw new FormError('O questionário "' . $ocupado['nome'] . ' (v' . $ocupado['versao'] . ')" já está no tema "' . $ocupado['tema']
+                            . '". Para movê-lo, troque o tema no cadastro do questionário.');
+                    }
+                },
+                'after_save' => static function (int $id, array $data): void {
+                    if (!array_key_exists('questionarios', $data)) {
+                        return;
+                    }
+                    $ids = $data['questionarios'];
+                    Db::run(
+                        'UPDATE questionarios SET tema_id = NULL WHERE tema_id = ?' . ($ids === [] ? '' : ' AND id NOT IN (' . Db::in($ids) . ')'),
+                        array_merge([$id], $ids)
+                    );
+                    if ($ids !== []) {
+                        Db::run('UPDATE questionarios SET tema_id = ? WHERE tema_id IS NULL AND id IN (' . Db::in($ids) . ')', array_merge([$id], $ids));
+                    }
+                },
+            ],
+
             'questionarios' => [
                 'table' => 'questionarios',
                 'perm' => 'questionario',
@@ -346,10 +407,14 @@ final class Resources
                 'plural' => 'Questionários',
                 'title' => "CONCAT(t.nome, ' (v', t.versao, ' · ', t.status, ')')",
                 'join' => '',
-                'list' => ['nome', 'status', 'versao', 'pesquisador_id', 'escola_id', 'compartilhado_na_escola'],
+                'list' => ['nome', 'tema_id', 'status', 'versao', 'pesquisador_id', 'escola_id', 'compartilhado_na_escola'],
                 'search' => ['nome'],
                 'fields' => [
                     'nome' => ['label' => 'Nome', 'type' => 'text', 'required' => true, 'max' => 255],
+                    'tema_id' => [
+                        'label' => 'Tema', 'type' => 'fk', 'ref' => 'temas',
+                        'help' => 'Opcional. Agrupa o questionário no painel (ex.: Saúde mental, Alimentação). Sem tema, ele só aparece em "Todos os temas".',
+                    ],
                     'descricao' => ['label' => 'Descrição', 'type' => 'textarea'],
                     'publico_alvo' => ['label' => 'Público-alvo', 'type' => 'text', 'max' => 255],
                     'escola_id' => ['label' => 'Escola', 'type' => 'fk', 'ref' => 'escolas', 'required' => true],
@@ -725,6 +790,34 @@ final class Resources
                 },
             ],
         ];
+    }
+
+    /**
+     * Questionários para o checklist do tema: os deste tema vêm marcados; os de outro tema, indisponíveis.
+     *
+     * @return list<array{valor: string, label: string, marcado: bool, indisponivel: ?string}>
+     */
+    private static function questionariosParaTema(Ctx $ctx, ?int $temaId): array
+    {
+        [$where, $params] = Scope::where('questionarios', $ctx);
+        $rows = Db::all(
+            "SELECT t.id, t.nome, t.versao, t.status, t.tema_id, e.nome AS escola, te.nome AS tema
+             FROM questionarios t LEFT JOIN escolas e ON e.id = t.escola_id LEFT JOIN temas te ON te.id = t.tema_id
+             WHERE $where AND t.deleted_at IS NULL
+             ORDER BY (t.tema_id IS NOT NULL AND t.tema_id <> ?), t.nome, t.versao, e.nome LIMIT 2000",
+            array_merge($params, [$temaId ?? 0])
+        );
+        $itens = [];
+        foreach ($rows as $q) {
+            $outroTema = $q['tema_id'] !== null && (int) $q['tema_id'] !== $temaId;
+            $itens[] = [
+                'valor' => (string) $q['id'],
+                'label' => $q['nome'] . ' (v' . $q['versao'] . ' · ' . (self::STATUS_QUESTIONARIO[$q['status']] ?? $q['status']) . ') — ' . ($q['escola'] ?? '?'),
+                'marcado' => $temaId !== null && (int) $q['tema_id'] === $temaId,
+                'indisponivel' => $outroTema ? 'Indisponível: já está no tema "' . $q['tema'] . '"' : null,
+            ];
+        }
+        return $itens;
     }
 
     private static function exigirMesmaEscola(string $table, mixed $id, int $escolaId, string $mensagem): void

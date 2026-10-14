@@ -17,6 +17,7 @@ import 'package:vise_sma_app/providers/app_providers.dart';
 /// API falsa com respostas no formato do backend PHP.
 class _FakeApi implements HttpClientAdapter {
   final chamadas = <String>[];
+  final corpos = <String, dynamic>{};
 
   static const _campos = [
     {
@@ -112,6 +113,21 @@ class _FakeApi implements HttpClientAdapter {
       'obrigatorio': false,
       'valor': null,
     },
+    {
+      'name': 'questionarios',
+      'label': 'Atribuir questionários a este tema?',
+      'tipo': 'checklist',
+      'obrigatorio': false,
+      'opcoes': [
+        {'valor': '10', 'label': 'Sono (v1)', 'indisponivel': null},
+        {
+          'valor': '11',
+          'label': 'Humor (v1)',
+          'indisponivel': 'Indisponível: já está no tema "Saúde mental"',
+        },
+      ],
+      'valor': <String>[],
+    },
   ];
 
   static Map<String, dynamic> _meta(
@@ -136,6 +152,7 @@ class _FakeApi implements HttpClientAdapter {
     final path = options.uri.path.replaceFirst('/api/v1', '');
     final chave = '${options.method} $path';
     chamadas.add(chave);
+    corpos[chave] = options.data;
     switch (chave) {
       case 'GET /staff/salas':
         return (200, {'data': []});
@@ -484,9 +501,22 @@ void main() {
       200,
       scrollable: _rolagem,
     );
+    expect(
+      find.text('Indisponível: já está no tema "Saúde mental"'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Humor (v1)'));
+    await tester.tap(find.text('Sono (v1)'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Salvar'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Salvar'));
     await tester.pumpAndSettle();
     expect(api.chamadas, contains('POST /staff/cadastros/questionarios'));
+    expect(
+      (api.corpos['POST /staff/cadastros/questionarios'] as Map)['questionarios'],
+      ['10'],
+    );
     expect(find.text('Conteúdo'), findsOneWidget);
   });
 

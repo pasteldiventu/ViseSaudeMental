@@ -77,6 +77,7 @@ paths:
       security: [{ bearerAuth: [] }]
       summary: Indicadores do painel (mesmos números do /admin)
       parameters:
+        - $ref: "#/components/parameters/tema_id"
         - $ref: "#/components/parameters/escola_id"
         - $ref: "#/components/parameters/turma_id"
         - $ref: "#/components/parameters/serie_id"
@@ -86,13 +87,13 @@ paths:
         - $ref: "#/components/parameters/aplicacao_id"
         - in: query
           name: periodo
-          schema: { type: string, enum: ["7", "30", "90", "365", tudo, personalizado], default: "30" }
+          schema: { type: string, enum: ["7", "30", "90", "365", tudo, personalizado], default: tudo }
         - $ref: "#/components/parameters/inicio"
         - $ref: "#/components/parameters/fim"
       responses:
         "200":
           description: >
-            `data`: filtros {query, descricao[{rotulo, valor}]}, resumo (alunos, participantes, participacao 0–1,
+            `data`: tema {id|null, nome} ("Todos os temas" sem tema_id), filtros {query, descricao[{rotulo, valor}]}, resumo (alunos, participantes, participacao 0–1,
             concluidos, em_andamento, aplicacoes_ativas, prioritarios, atencao…), evolucao {granularidade: dia|mes, pontos[{rotulo, valor}]},
             classificacao[{categoria, questionario, avaliacoes, media, faixas[{rotulo, nivel: baixo|moderado|alto|null, qtd, pct}]}],
             turmas (menor participação primeiro), aplicacoes (até 10) e alertas (até 10; datas em UTC).
@@ -105,8 +106,9 @@ paths:
       responses:
         "200":
           description: >
-            `data`: escolas[{id, nome}], turmas[{id, nome, escola_id, escola, turno}], series[{id, nome}],
-            turnos[{valor, rotulo}], sexos[{valor, rotulo}], questionarios[{id, nome}], periodos[{valor, rotulo}],
+            `data`: temas[{id, nome, descricao, emoji, cor, questionarios}] (só os ativos), escolas[{id, nome}],
+            turmas[{id, nome, escola_id, escola, turno}], series[{id, nome}],
+            turnos[{valor, rotulo}], sexos[{valor, rotulo}], questionarios[{id, nome, tema_id}], periodos[{valor, rotulo}],
             abas[{chave, rotulo, descricao, padrao, obrigatoria}].
   /staff/relatorios/exportar:
     get:
@@ -114,6 +116,7 @@ paths:
       security: [{ bearerAuth: [] }]
       summary: Relatório em Excel (.xlsx) com os filtros e abas escolhidos
       parameters:
+        - $ref: "#/components/parameters/tema_id"
         - $ref: "#/components/parameters/escola_id"
         - $ref: "#/components/parameters/turma_id"
         - $ref: "#/components/parameters/serie_id"
@@ -197,6 +200,7 @@ components:
       type: http
       scheme: bearer
   parameters:
+    tema_id: { in: query, name: tema_id, description: "Só questionários do tema; ausente ou \"todos\" = todos os temas", schema: { type: string, example: "3" } }
     escola_id: { in: query, name: escola_id, schema: { type: integer } }
     turma_id: { in: query, name: turma_id, schema: { type: integer } }
     serie_id: { in: query, name: serie_id, schema: { type: integer } }

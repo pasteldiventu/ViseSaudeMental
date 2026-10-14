@@ -11,6 +11,33 @@ class Opcao {
   final String rotulo;
 }
 
+class QuestionarioOpcao extends Opcao {
+  const QuestionarioOpcao(super.valor, super.rotulo, {this.temaId});
+
+  final String? temaId;
+}
+
+/// Tema do painel (ex.: Saúde mental), com a contagem de questionários visíveis.
+class TemaOpcao {
+  const TemaOpcao({
+    required this.id,
+    required this.nome,
+    this.descricao,
+    this.emoji,
+    this.cor,
+    this.questionarios = 0,
+  });
+
+  final String id;
+  final String nome;
+  final String? descricao;
+  final String? emoji;
+
+  /// Hex "#RRGGBB".
+  final String? cor;
+  final int questionarios;
+}
+
 class TurmaOpcao {
   const TurmaOpcao({
     required this.id,
@@ -43,7 +70,19 @@ class AbaRelatorio {
 
 class OpcoesRelatorio {
   OpcoesRelatorio.fromJson(Map<String, dynamic> json)
-    : escolas = _idNome(json['escolas']),
+    : temas = _maps(json['temas'])
+          .map(
+            (t) => TemaOpcao(
+              id: '${t['id']}',
+              nome: '${t['nome'] ?? ''}',
+              descricao: _texto(t['descricao']),
+              emoji: _texto(t['emoji']),
+              cor: _texto(t['cor']),
+              questionarios: _int(t['questionarios']),
+            ),
+          )
+          .toList(),
+      escolas = _idNome(json['escolas']),
       turmas = _maps(json['turmas'])
           .map(
             (t) => TurmaOpcao(
@@ -57,7 +96,15 @@ class OpcoesRelatorio {
       series = _idNome(json['series']),
       turnos = _pares(json['turnos']),
       sexos = _pares(json['sexos']),
-      questionarios = _idNome(json['questionarios']),
+      questionarios = _maps(json['questionarios'])
+          .map(
+            (q) => QuestionarioOpcao(
+              '${q['id']}',
+              '${q['nome'] ?? ''}',
+              temaId: q['tema_id']?.toString(),
+            ),
+          )
+          .toList(),
       periodos = _pares(json['periodos']),
       abas = _maps(json['abas'])
           .map(
@@ -71,14 +118,20 @@ class OpcoesRelatorio {
           )
           .toList();
 
+  final List<TemaOpcao> temas;
   final List<Opcao> escolas;
   final List<TurmaOpcao> turmas;
   final List<Opcao> series;
   final List<Opcao> turnos;
   final List<Opcao> sexos;
-  final List<Opcao> questionarios;
+  final List<QuestionarioOpcao> questionarios;
   final List<Opcao> periodos;
   final List<AbaRelatorio> abas;
+
+  /// Questionários do tema (todos, se [temaId] for nulo).
+  List<QuestionarioOpcao> questionariosDoTema(String? temaId) => temaId == null
+      ? questionarios
+      : questionarios.where((q) => q.temaId == temaId).toList();
 }
 
 class ResumoPainel {
@@ -426,6 +479,11 @@ String? nomeDoArquivo(String? disposition) {
 int _int(dynamic value) => value is int
     ? value
     : (value is num ? value.toInt() : int.tryParse('${value ?? ''}') ?? 0);
+
+String? _texto(dynamic value) {
+  final texto = value?.toString().trim() ?? '';
+  return texto.isEmpty ? null : texto;
+}
 
 double? _double(dynamic value) =>
     value is num ? value.toDouble() : double.tryParse('${value ?? ''}');

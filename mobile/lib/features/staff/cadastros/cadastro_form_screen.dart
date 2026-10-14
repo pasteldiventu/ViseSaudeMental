@@ -88,6 +88,10 @@ class _CadastroFormScreenState extends ConsumerState<CadastroFormScreen> {
                 });
         } else if (campo.tipo == 'bool') {
           _valores[campo.name] = valor == true;
+        } else if (campo.tipo == 'checklist') {
+          _valores[campo.name] = <String>{
+            if (valor is Iterable) ...valor.map((v) => '$v'),
+          };
         } else if (campo.tipo == 'select' || campo.tipo == 'fk') {
           final texto = valor?.toString();
           final existe = campo.opcoes?.any((o) => o.valor == texto) ?? false;
@@ -115,9 +119,10 @@ class _CadastroFormScreenState extends ConsumerState<CadastroFormScreen> {
     if (form == null || !_formKey.currentState!.validate()) return;
     final dados = <String, dynamic>{};
     for (final campo in form.campos) {
-      dados[campo.name] = _textuais.contains(campo.tipo)
+      final valor = _textuais.contains(campo.tipo)
           ? _controllers[campo.name]!.text
           : _valores[campo.name];
+      dados[campo.name] = valor is Set ? valor.toList() : valor;
     }
     setState(() {
       _salvando = true;
@@ -246,9 +251,75 @@ class _CadastroFormScreenState extends ConsumerState<CadastroFormScreen> {
       case 'date':
       case 'datetime':
         return _campoData(campo);
+      case 'checklist':
+        return _campoChecklist(campo);
       default:
         return _campoTexto(campo);
     }
+  }
+
+  /// Seleção múltipla; opções indisponíveis ficam cinza, desabilitadas e com o motivo.
+  Widget _campoChecklist(CampoFormulario campo) {
+    final marcados = _valores[campo.name] as Set<String>;
+    final opcoes = campo.opcoes ?? const <OpcaoCampo>[];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          campo.label,
+          style: GoogleFonts.figtree(fontWeight: FontWeight.w800, fontSize: 15),
+        ),
+        if (campo.ajuda != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              campo.ajuda!,
+              style: GoogleFonts.figtree(color: AppColors.muted, fontSize: 12),
+            ),
+          ),
+        const SizedBox(height: 8),
+        if (opcoes.isEmpty)
+          Text(
+            'Nenhuma opção cadastrada ainda.',
+            style: GoogleFonts.figtree(color: AppColors.muted),
+          ),
+        for (final opcao in opcoes)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: CheckboxListTile(
+              dense: true,
+              enabled: opcao.indisponivel == null,
+              tileColor: opcao.indisponivel == null
+                  ? AppColors.surfaceRaised
+                  : AppColors.locked.withValues(alpha: 0.55),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadii.sm),
+              ),
+              controlAffinity: ListTileControlAffinity.leading,
+              value:
+                  opcao.indisponivel == null && marcados.contains(opcao.valor),
+              onChanged: (v) => setState(
+                () => v == true
+                    ? marcados.add(opcao.valor)
+                    : marcados.remove(opcao.valor),
+              ),
+              title: Text(
+                opcao.label,
+                style: GoogleFonts.figtree(fontWeight: FontWeight.w600),
+              ),
+              subtitle: opcao.indisponivel == null
+                  ? null
+                  : Text(
+                      opcao.indisponivel!,
+                      style: GoogleFonts.figtree(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+            ),
+          ),
+      ],
+    );
   }
 
   Widget _campoTexto(CampoFormulario campo) {

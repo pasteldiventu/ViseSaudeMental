@@ -258,9 +258,34 @@ final class Records
             if ($name === 'pesquisador_id' && $ctx->pesquisadorOnly()) {
                 continue;
             }
+            if ($row !== null && isset($field['label_edicao'])) {
+                $field['label'] = str_replace('{nome}', (string) ($row['nome'] ?? ''), $field['label_edicao']);
+            }
             $fields[$name] = $field;
         }
         return $fields;
+    }
+
+    /** @return list<array{valor: string, label: string, marcado: bool, indisponivel: ?string}> */
+    public static function checklistItens(array $field, Ctx $ctx, ?array $row): array
+    {
+        return ($field['itens'])($ctx, $row);
+    }
+
+    /** @return list<int> ids positivos de um array ou de uma lista separada por vírgulas */
+    public static function checklistIds(mixed $raw): array
+    {
+        $valores = is_array($raw) ? $raw : (is_string($raw) ? explode(',', $raw) : []);
+        $ids = [];
+        foreach ($valores as $valor) {
+            if (is_int($valor) || (is_string($valor) && ctype_digit(trim($valor)))) {
+                $id = (int) (is_string($valor) ? trim($valor) : $valor);
+                if ($id > 0) {
+                    $ids[$id] = $id;
+                }
+            }
+        }
+        return array_values($ids);
     }
 
     /** @return array<int|string, string> */
@@ -353,6 +378,13 @@ final class Records
         $data = [];
         foreach (self::formFields($res, $ctx, $row) as $name => $field) {
             $label = $field['label'];
+            if ($field['type'] === 'checklist') {
+                // Ausente = não altera; o formulário web manda sempre um item vazio para permitir desmarcar tudo.
+                if (array_key_exists($name, $input)) {
+                    $data[$name] = self::checklistIds($input[$name]);
+                }
+                continue;
+            }
             $raw = $input[$name] ?? null;
             if (is_bool($raw)) {
                 $raw = $raw ? '1' : '';
@@ -440,6 +472,9 @@ final class Records
                 ($res['before_delete'])($row, $ctx);
             }
             Db::transaction(static function () use ($res, $row): void {
+                foreach ($res['nullify'] ?? [] as [$table, $column]) {
+                    Db::run("UPDATE `$table` SET `$column` = NULL WHERE `$column` = ?", [$row['id']]);
+                }
                 foreach ($res['cascade'] ?? [] as $cascade) {
                     [$table, $column] = $cascade;
                     $extra = isset($cascade[2]) ? ' AND ' . $cascade[2] : '';

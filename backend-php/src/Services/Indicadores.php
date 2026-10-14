@@ -611,7 +611,7 @@ final class Indicadores
         return [implode(' AND ', $c), $p];
     }
 
-    /** @return array{0: string, 1: list<mixed>} aplicações (alias ap) por escola, questionário e aplicação */
+    /** @return array{0: string, 1: list<mixed>} aplicações (alias ap) por escola, tema, questionário e aplicação */
     private function condAplicacoes(): array
     {
         $c = ['ap.deleted_at IS NULL'];
@@ -625,6 +625,10 @@ final class Indicadores
                 $c[] = "$coluna = ?";
                 $p[] = $valor;
             }
+        }
+        if ($this->filtros->temaId !== null) {
+            $c[] = 'ap.questionario_id IN (SELECT s_q.id FROM questionarios s_q WHERE s_q.tema_id = ?)';
+            $p[] = $this->filtros->temaId;
         }
         return [implode(' AND ', $c), $p];
     }

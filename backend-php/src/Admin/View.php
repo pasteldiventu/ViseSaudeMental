@@ -24,6 +24,8 @@ final class View
         'series' => '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
         'turmas' => '<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/>',
         'alunos' => '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+        'temas' => '<path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
+        'trocar' => '<path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/>',
         'questionarios' => '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M9 11h6M9 15h4"/>',
         'categorias' => '<path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4z"/><circle cx="16.5" cy="16.5" r="3.5"/>',
         'subcategorias' => '<path d="M6 4v12a2 2 0 0 0 2 2h10"/><path d="M14 14l4 4-4 4"/>',
@@ -73,7 +75,8 @@ final class View
         return '<input type="hidden" name="_csrf" value="' . self::e(Auth::csrfToken()) . '">';
     }
 
-    public static function page(Ctx $ctx, string $title, string $content, string $active = '', string $actions = '', int $status = 200, string $subtitle = ''): Response
+    /** @param array<string, string> $focoManter parâmetros preservados ao trocar a escola em foco */
+    public static function page(Ctx $ctx, string $title, string $content, string $active = '', string $actions = '', int $status = 200, string $subtitle = '', array $focoManter = []): Response
     {
         $menu = '';
         foreach (Resources::MENU as $group => $keys) {
@@ -116,7 +119,7 @@ final class View
             . '</aside>'
             . '<main class="content">'
             . '<div class="topbar"><div class="greeting"><strong>Olá, ' . self::e($primeiroNome) . '</strong><span>' . self::e(self::hoje()) . '</span></div>'
-            . self::seletorFoco($ctx, $active)
+            . self::seletorFoco($ctx, $active, $focoManter)
             . '<div class="user-chip"><span class="avatar">' . self::e(self::iniciais($ctx->name)) . '</span>'
             . '<span class="user-info"><span class="user-name">' . self::e($ctx->name) . '</span><span class="user-role">' . self::e($papel) . '</span></span>'
             . '<a class="icon-btn" href="' . self::e(Url::to('/admin/logout')) . '" title="Sair" aria-label="Sair">' . self::icone('sair') . '</a></div></div>'
@@ -129,8 +132,12 @@ final class View
         return Response::html(self::document($title, $body), $status);
     }
 
-    /** Escola em foco: listas, formulários novos, painel e relatórios passam a mostrar só ela. */
-    private static function seletorFoco(Ctx $ctx, string $active): string
+    /**
+     * Escola em foco: listas, formulários novos, painel e relatórios passam a mostrar só ela.
+     *
+     * @param array<string, string> $manter
+     */
+    private static function seletorFoco(Ctx $ctx, string $active, array $manter): string
     {
         $escolas = Auth::escolasParaFoco($ctx);
         if ($escolas === []) {
@@ -138,8 +145,11 @@ final class View
         }
         $foco = Auth::escolaFoco($ctx);
         $html = '<form class="foco' . ($foco !== null ? ' ativo' : '') . '" method="get" action="' . self::e(Url::to('/admin/foco')) . '">'
-            . '<input type="hidden" name="voltar" value="' . self::e($active) . '">'
-            . '<label for="foco-escola">Escola em foco</label>'
+            . '<input type="hidden" name="voltar" value="' . self::e($active) . '">';
+        foreach ($manter as $nome => $valor) {
+            $html .= '<input type="hidden" name="' . self::e($nome) . '" value="' . self::e($valor) . '">';
+        }
+        $html .= '<label for="foco-escola">Escola em foco</label>'
             . '<select id="foco-escola" name="escola_id" onchange="this.form.submit()"><option value="0">Todas as escolas</option>';
         foreach ($escolas as $id => $nome) {
             $html .= '<option value="' . $id . '"' . ($id === $foco ? ' selected' : '') . '>' . self::e($nome) . '</option>';
@@ -196,7 +206,7 @@ final class View
             . '<title>' . self::e($title) . ' · VISE-MT</title>'
             . '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
             . '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap">'
-            . '<link rel="stylesheet" href="' . self::e(Url::to('/static/admin.css')) . '?v=3">'
+            . '<link rel="stylesheet" href="' . self::e(Url::to('/static/admin.css')) . '?v=4">'
             . '</head><body' . ($classe !== '' ? ' class="' . $classe . '"' : '') . '>' . $body . '</body></html>';
     }
 }

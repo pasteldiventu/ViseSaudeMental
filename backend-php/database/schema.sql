@@ -114,10 +114,26 @@ CREATE TABLE IF NOT EXISTS alunos (
   CONSTRAINT alunos_ibfk_2 FOREIGN KEY (escola_id) REFERENCES escolas (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Temas agrupam questionários no painel (ex.: Saúde mental, Alimentação). Globais: valem para todas as escolas.
+CREATE TABLE IF NOT EXISTS temas (
+  id INT NOT NULL AUTO_INCREMENT,
+  nome VARCHAR(255) NOT NULL,
+  descricao TEXT NULL,
+  emoji VARCHAR(50) NULL,
+  cor VARCHAR(30) NULL,
+  ativo TINYINT(1) NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  deleted_at DATETIME NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_temas_nome (nome)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS questionarios (
   id INT NOT NULL AUTO_INCREMENT,
   escola_id INT NOT NULL,
   pesquisador_id INT NOT NULL,
+  tema_id INT NULL,
   nome VARCHAR(255) NOT NULL,
   descricao TEXT NULL,
   status VARCHAR(30) NOT NULL DEFAULT 'rascunho',
@@ -132,9 +148,11 @@ CREATE TABLE IF NOT EXISTS questionarios (
   KEY ix_questionarios_escola_id (escola_id),
   KEY ix_questionarios_pesquisador_id (pesquisador_id),
   KEY ix_questionarios_parent_id (parent_id),
+  KEY ix_questionarios_tema_id (tema_id),
   CONSTRAINT questionarios_ibfk_1 FOREIGN KEY (escola_id) REFERENCES escolas (id),
   CONSTRAINT questionarios_ibfk_2 FOREIGN KEY (pesquisador_id) REFERENCES users (id),
-  CONSTRAINT questionarios_ibfk_3 FOREIGN KEY (parent_id) REFERENCES questionarios (id)
+  CONSTRAINT questionarios_ibfk_3 FOREIGN KEY (parent_id) REFERENCES questionarios (id),
+  CONSTRAINT questionarios_ibfk_tema FOREIGN KEY (tema_id) REFERENCES temas (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS categorias (

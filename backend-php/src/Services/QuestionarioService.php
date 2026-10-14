@@ -101,6 +101,7 @@ final class QuestionarioService
             $novoId = Db::insert('questionarios', [
                 'escola_id' => $original['escola_id'],
                 'pesquisador_id' => $original['pesquisador_id'],
+                'tema_id' => $original['tema_id'] ?? null,
                 'nome' => $original['nome'],
                 'descricao' => $original['descricao'],
                 'status' => 'rascunho',

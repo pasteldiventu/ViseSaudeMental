@@ -50,6 +50,11 @@ final class Installer
         if (self::indexExists('turmas', 'uq_turmas_escola_nome')) {
             Db::pdo()->exec('ALTER TABLE turmas DROP INDEX uq_turmas_escola_nome');
         }
+        if (!self::columnExists('questionarios', 'tema_id')) {
+            Db::pdo()->exec('ALTER TABLE questionarios ADD COLUMN tema_id INT NULL AFTER pesquisador_id, ADD KEY ix_questionarios_tema_id (tema_id), '
+                . 'ADD CONSTRAINT questionarios_ibfk_tema FOREIGN KEY (tema_id) REFERENCES temas (id)');
+            $log[] = 'Coluna questionarios.tema_id criada (questionários existentes ficam sem tema).';
+        }
         $corrigidos = 0;
         foreach (Db::all('SELECT id FROM questionarios') as $q) {
             $corrigidos += QuestionarioService::propagarEscola((int) $q['id']);

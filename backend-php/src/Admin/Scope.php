@@ -34,6 +34,7 @@ final class Scope
 
         switch ($resource) {
             case 'series':
+            case 'temas':
                 break;
             case 'escolas':
                 $add("t.id IN ($inEscolas)", $escolas);

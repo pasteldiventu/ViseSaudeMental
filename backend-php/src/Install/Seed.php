@@ -114,6 +114,15 @@ final class Seed
                 [2, 2, 'Bem acolhido(a)', 'baixo'],
             ]);
             self::aplicacao($questionarioB, $escola);
+
+            $saudeMental = self::firstOrCreate('temas', ['nome' => 'Saúde mental'], [
+                'descricao' => 'Emoções, ansiedade e bem-estar psicológico.', 'emoji' => '🧠', 'cor' => '#14B8A6', 'ativo' => 1,
+            ]);
+            $convivio = self::firstOrCreate('temas', ['nome' => 'Convívio escolar'], [
+                'descricao' => 'Acolhimento, amizades e clima da turma.', 'emoji' => '🤝', 'cor' => '#38BDF8', 'ativo' => 1,
+            ]);
+            Db::run('UPDATE questionarios SET tema_id = ? WHERE id = ? AND tema_id IS NULL', [$saudeMental, $questionario]);
+            Db::run('UPDATE questionarios SET tema_id = ? WHERE id = ? AND tema_id IS NULL', [$convivio, $questionarioB]);
         });
     }
 

@@ -441,6 +441,7 @@ final class CrudController
                 'select' => self::select($attrs, $field['options'], $value, $required),
                 'fk' => self::select($attrs, Records::fkOptions($field, $ctx, $row, $name), $value, $required),
                 'color' => '<input type="text" placeholder="#14B8A6"' . $attrs . ' value="' . View::e($value) . '">',
+                'checklist' => self::checklist($name, Records::checklistItens($field, $ctx, $row), $value),
                 default => '<input type="text"' . $attrs . ' value="' . View::e($value) . '">',
             };
             $help = isset($field['help']) ? '<small>' . View::e($field['help']) . '</small>' : '';
@@ -454,6 +455,30 @@ final class CrudController
 
         $title = $row === null ? 'Novo(a) ' . Str::lower($res['singular']) : 'Editar ' . Str::lower($res['singular']);
         return View::page($ctx, $title, $html, $key, '', $error === null ? 200 : 422);
+    }
+
+    /**
+     * Caixas de seleção múltipla; itens indisponíveis aparecem desabilitados com o motivo.
+     *
+     * @param list<array{valor: string, label: string, marcado: bool, indisponivel: ?string}> $itens
+     * @param mixed $value ids enviados (após erro de validação) ou null para usar o estado salvo
+     */
+    private static function checklist(string $name, array $itens, mixed $value): string
+    {
+        $enviados = is_array($value) ? array_flip(array_map('strval', Records::checklistIds($value))) : null;
+        $html = '<input type="hidden" name="' . View::e($name) . '[]" value="">';
+        if ($itens === []) {
+            return $html . '<p class="empty-state">Nenhuma opção cadastrada ainda.</p>';
+        }
+        $html .= '<div class="checklist">';
+        foreach ($itens as $item) {
+            $bloqueado = $item['indisponivel'] !== null;
+            $marcado = !$bloqueado && ($enviados !== null ? isset($enviados[$item['valor']]) : $item['marcado']);
+            $html .= '<label class="check-card' . ($bloqueado ? ' check-card-off' : '') . '"' . ($bloqueado ? ' title="' . View::e($item['indisponivel']) . '"' : '') . '>'
+                . '<input type="checkbox" name="' . View::e($name) . '[]" value="' . View::e($item['valor']) . '"' . ($marcado ? ' checked' : '') . ($bloqueado ? ' disabled' : '') . '>'
+                . '<span><strong>' . View::e($item['label']) . '</strong>' . ($bloqueado ? '<small>' . View::e($item['indisponivel']) . '</small>' : '') . '</span></label>';
+        }
+        return $html . '</div>';
     }
 
     /** @param array<int|string, string> $options */

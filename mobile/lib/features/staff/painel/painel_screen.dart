@@ -11,6 +11,7 @@ import '../escola_foco.dart';
 import 'painel_widgets.dart';
 
 /// Indicadores gerais no escopo do usuário (mesmos números do painel web).
+/// Abre na escolha do tema ("Todos os temas" ou um tema) e depois mostra o painel dele.
 class PainelScreen extends ConsumerStatefulWidget {
   const PainelScreen({super.key, this.drawer, this.onGerarRelatorio});
 
@@ -24,28 +25,59 @@ class PainelScreen extends ConsumerStatefulWidget {
 }
 
 class _PainelScreenState extends ConsumerState<PainelScreen> {
+  static const _periodoPadrao = 'tudo';
   static const _periodos = {
+    'tudo': 'Tudo',
     '7': '7 dias',
     '30': '30 dias',
     '90': '90 dias',
     '365': '12 meses',
-    'tudo': 'Tudo',
   };
 
-  Map<String, String> _filtros = {'periodo': '30'};
+  Map<String, String> _filtros = {'periodo': _periodoPadrao};
   DadosPainel? _dados;
-  bool _carregando = true;
+  bool _carregando = false;
   String? _erro;
+
+  /// Falso enquanto o usuário está na escolha do tema.
+  bool _temaEscolhido = false;
+
+  /// Nulo = todos os temas.
+  TemaOpcao? _tema;
 
   @override
   void initState() {
     super.initState();
     final foco = ref.read(escolaFocoProvider);
     if (foco != null) _filtros = {..._filtros, 'escola_id': '${foco.id}'};
-    Future.microtask(_carregar);
   }
 
+  Map<String, String> get _base => {
+    'periodo': _filtros['periodo'] ?? _periodoPadrao,
+    if (_tema != null) 'tema_id': _tema!.id,
+  };
+
+  void _escolherTema(TemaOpcao? tema) {
+    setState(() {
+      _tema = tema;
+      _temaEscolhido = true;
+      _dados = null;
+      _erro = null;
+    });
+    final filtros = Map.of(_filtros)
+      ..remove('tema_id')
+      ..remove('questionario_id');
+    _aplicar({...filtros, ..._base});
+  }
+
+  void _trocarTema() => setState(() {
+    _temaEscolhido = false;
+    _dados = null;
+    _erro = null;
+  });
+
   Future<void> _carregar() async {
+    if (!_temaEscolhido) return;
     setState(() {
       _carregando = true;
       _erro = null;
@@ -94,9 +126,7 @@ class _PainelScreenState extends ConsumerState<PainelScreen> {
       ),
       builder: (_) => _FiltrosSheet(filtros: _filtros),
     );
-    if (escolhidos != null) {
-      _aplicar({...escolhidos, 'periodo': _filtros['periodo'] ?? '30'});
-    }
+    if (escolhidos != null) _aplicar({...escolhidos, ..._base});
   }
 
   @override
@@ -109,14 +139,30 @@ class _PainelScreenState extends ConsumerState<PainelScreen> {
         ..remove('turma_id');
       _aplicar({...filtros, 'escola_id': ?novo});
     });
+    if (!_temaEscolhido) {
+      return Scaffold(
+        drawer: widget.drawer,
+        appBar: AppBar(title: const Text('Painel')),
+        body: _EscolhaTema(onEscolher: _escolherTema),
+      );
+    }
     final dados = _dados;
     final extras =
-        dados?.filtros.where((f) => f.rotulo != 'Período').toList() ?? const [];
+        dados?.filtros
+            .where((f) => f.rotulo != 'Período' && f.rotulo != 'Tema')
+            .toList() ??
+        const [];
     return Scaffold(
       drawer: widget.drawer,
       appBar: AppBar(
-        title: const Text('Painel'),
+        title: Text('Painel: ${_tema?.nome ?? 'Todos os temas'}'),
         actions: [
+          BotaoRedondo(
+            icone: Icons.swap_horiz_rounded,
+            tooltip: 'Trocar tema',
+            onPressed: _trocarTema,
+          ),
+          const SizedBox(width: 8),
           BotaoRedondo(
             icone: Icons.tune_rounded,
             tooltip: 'Filtros',
@@ -152,7 +198,8 @@ class _PainelScreenState extends ConsumerState<PainelScreen> {
                       padding: const EdgeInsets.only(right: 8),
                       child: ChoiceChip(
                         label: Text(p.value),
-                        selected: (_filtros['periodo'] ?? '30') == p.key,
+                        selected:
+                            (_filtros['periodo'] ?? _periodoPadrao) == p.key,
                         onSelected: (_) =>
                             _aplicar({..._filtros, 'periodo': p.key}),
                       ),
@@ -171,8 +218,7 @@ class _PainelScreenState extends ConsumerState<PainelScreen> {
                     for (final f in extras)
                       Chip(label: Text('${f.rotulo}: ${f.valor}')),
                     TextButton(
-                      onPressed: () =>
-                          _aplicar({'periodo': _filtros['periodo'] ?? '30'}),
+                      onPressed: () => _aplicar(_base),
                       child: const Text('Limpar filtros'),
                     ),
                   ],
@@ -643,6 +689,190 @@ class _AlertaTile extends StatelessWidget {
   }
 }
 
+/// Início do painel: "Todos os temas" + um cartão por tema ativo.
+class _EscolhaTema extends ConsumerWidget {
+  const _EscolhaTema({required this.onEscolher});
+
+  /// Nulo = todos os temas.
+  final ValueChanged<TemaOpcao?> onEscolher;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final opcoes = ref.watch(opcoesRelatorioProvider);
+    return opcoes.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(mensagemDeErro(e, 'Não foi possível carregar os temas.')),
+            TextButton(
+              onPressed: () => ref.invalidate(opcoesRelatorioProvider),
+              child: const Text('Tentar de novo'),
+            ),
+          ],
+        ),
+      ),
+      data: (o) => RefreshIndicator(
+        onRefresh: () => ref.refresh(opcoesRelatorioProvider.future),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
+          children: [
+            Text(
+              'Escolha um tema para ver os indicadores.',
+              style: GoogleFonts.figtree(color: AppColors.muted),
+            ),
+            const SizedBox(height: 14),
+            HeroCard(
+              onTap: () => onEscolher(null),
+              child: Row(
+                children: [
+                  const Icon(Icons.dashboard_rounded, size: 34),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Todos os temas',
+                          style: GoogleFonts.figtree(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 20,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Indicadores de todos os questionários, com ou sem tema.',
+                          style: GoogleFonts.figtree(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.ink.withValues(alpha: 0.75),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.arrow_forward_rounded),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            if (o.temas.isEmpty)
+              const Vazio(
+                'Nenhum tema cadastrado ainda. O admin geral cadastra os temas em Instrumentos › Temas.',
+              )
+            else
+              LayoutBuilder(
+                builder: (context, c) {
+                  final colunas = c.maxWidth >= 720
+                      ? 3
+                      : (c.maxWidth >= 460 ? 2 : 1);
+                  final largura = (c.maxWidth - 12 * (colunas - 1)) / colunas;
+                  return Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      for (final t in o.temas)
+                        SizedBox(
+                          width: largura,
+                          child: _CartaoTema(
+                            tema: t,
+                            onTap: () => onEscolher(t),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CartaoTema extends StatelessWidget {
+  const _CartaoTema({required this.tema, required this.onTap});
+
+  final TemaOpcao tema;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cor = _corHex(tema.cor) ?? AppColors.mint;
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(AppRadii.lg),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: cor.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  tema.emoji ??
+                      (tema.nome.isEmpty ? '?' : tema.nome[0].toUpperCase()),
+                  style: GoogleFonts.figtree(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: cor,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                tema.nome,
+                style: GoogleFonts.figtree(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 17,
+                ),
+              ),
+              if (tema.descricao != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  tema.descricao!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.figtree(
+                    color: AppColors.muted,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Selo('${tema.questionarios} questionário(s)', cor: cor),
+                  const Spacer(),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: AppColors.muted,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Color? _corHex(String? hex) {
+  final limpo = (hex ?? '').replaceAll('#', '');
+  final valor = limpo.length == 6 ? int.tryParse(limpo, radix: 16) : null;
+  return valor == null ? null : Color(0xFF000000 | valor);
+}
+
 /// Escola, turma e questionário do painel (o período fica nos chips da tela).
 class _FiltrosSheet extends ConsumerStatefulWidget {
   const _FiltrosSheet({required this.filtros});
@@ -725,7 +955,7 @@ class _FiltrosSheetState extends ConsumerState<_FiltrosSheet> {
                 rotulo: 'Questionário',
                 vazio: 'Todos os questionários',
                 valor: _questionario,
-                opcoes: o.questionarios,
+                opcoes: o.questionariosDoTema(widget.filtros['tema_id']),
                 onChanged: (v) => setState(() => _questionario = v),
               ),
               const SizedBox(height: 18),

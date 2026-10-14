@@ -31,6 +31,35 @@ final class OpcoesFiltro
         ));
     }
 
+    /** @return list<array{id: int, nome: string, descricao: ?string, emoji: ?string, cor: ?string, questionarios: int}> temas ativos (contagem no escopo) */
+    public static function temas(Ctx $ctx): array
+    {
+        [$where, $params] = Scope::where('questionarios', $ctx);
+        return array_map(static fn (array $t) => [
+            'id' => (int) $t['id'], 'nome' => (string) $t['nome'], 'descricao' => $t['descricao'], 'emoji' => $t['emoji'], 'cor' => $t['cor'],
+            'questionarios' => (int) $t['questionarios'],
+        ], Db::all(
+            "SELECT te.id, te.nome, te.descricao, te.emoji, te.cor,
+                    (SELECT COUNT(*) FROM questionarios t WHERE t.tema_id = te.id AND t.deleted_at IS NULL AND $where) AS questionarios
+             FROM temas te WHERE te.ativo = 1 AND te.deleted_at IS NULL ORDER BY te.nome",
+            $params
+        ));
+    }
+
+    /** @return list<array{id: int, nome: string, tema_id: ?int}> */
+    public static function questionarios(Ctx $ctx, ?int $temaId = null): array
+    {
+        [$where, $params] = Scope::where('questionarios', $ctx);
+        if ($temaId !== null) {
+            $where .= ' AND t.tema_id = ?';
+            $params[] = $temaId;
+        }
+        $titulo = Resources::get('questionarios')['title'];
+        return array_map(static fn (array $q) => [
+            'id' => (int) $q['id'], 'nome' => (string) $q['nome'], 'tema_id' => $q['tema_id'] === null ? null : (int) $q['tema_id'],
+        ], Db::all("SELECT t.id, $titulo AS nome, t.tema_id FROM questionarios t WHERE $where ORDER BY nome LIMIT 2000", $params));
+    }
+
     /** @return array<string, string> */
     public static function sexos(Ctx $ctx): array
     {
@@ -60,12 +89,13 @@ final class OpcoesFiltro
             $abas[] = ['chave' => $chave, 'rotulo' => $rotulo, 'descricao' => $descricao, 'padrao' => $padrao, 'obrigatoria' => $chave === 'resumo'];
         }
         return [
+            'temas' => self::temas($ctx),
             'escolas' => $lista(Resources::options('escolas', $ctx, false)),
             'turmas' => self::turmas($ctx),
             'series' => $lista(Resources::options('series', $ctx, false)),
             'turnos' => $pares(Resources::TURNOS),
             'sexos' => $pares(self::sexos($ctx)),
-            'questionarios' => $lista(Resources::options('questionarios', $ctx, false)),
+            'questionarios' => self::questionarios($ctx),
             'periodos' => $pares(FiltrosRelatorio::PERIODOS + ['personalizado' => 'Personalizado']),
             'abas' => $abas,
         ];

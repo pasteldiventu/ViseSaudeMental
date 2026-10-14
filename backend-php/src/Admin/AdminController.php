@@ -45,7 +45,9 @@ final class AdminController
             Resources::get($voltar) !== null => '/admin/' . $voltar,
             default => '/admin',
         };
-        return Response::redirect(Url::to($destino));
+        $tema = (string) ($request->query['tema_id'] ?? '');
+        $manter = $destino === '/admin' && ($tema === 'todos' || ctype_digit($tema)) ? ['tema_id' => $tema] : [];
+        return Response::redirect(Url::to($destino, $manter));
     }
 
     public static function logout(Request $request): Response

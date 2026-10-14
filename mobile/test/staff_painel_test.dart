@@ -23,10 +23,12 @@ class _FakeApi implements HttpClientAdapter {
 
   static const _painel = {
     'data': {
+      'tema': {'id': 3, 'nome': 'Saúde mental'},
       'filtros': {
-        'query': {'periodo': '30'},
+        'query': {'periodo': 'tudo', 'tema_id': '3'},
         'descricao': [
-          {'rotulo': 'Período', 'valor': 'Últimos 30 dias'},
+          {'rotulo': 'Período', 'valor': 'Todo o período'},
+          {'rotulo': 'Tema', 'valor': 'Saúde mental'},
         ],
       },
       'resumo': {
@@ -104,6 +106,24 @@ class _FakeApi implements HttpClientAdapter {
 
   static const _opcoes = {
     'data': {
+      'temas': [
+        {
+          'id': 3,
+          'nome': 'Saúde mental',
+          'descricao': 'Emoções e bem-estar',
+          'emoji': '🧠',
+          'cor': '#14B8A6',
+          'questionarios': 1,
+        },
+        {
+          'id': 4,
+          'nome': 'Alimentação',
+          'descricao': null,
+          'emoji': null,
+          'cor': null,
+          'questionarios': 0,
+        },
+      ],
       'escolas': [
         {'id': 1, 'nome': 'Escola Demo'},
       ],
@@ -131,11 +151,12 @@ class _FakeApi implements HttpClientAdapter {
       ],
       'sexos': [],
       'questionarios': [
-        {'id': 1, 'nome': 'Bem-estar'},
+        {'id': 1, 'nome': 'Bem-estar', 'tema_id': 3},
+        {'id': 2, 'nome': 'Cardápio', 'tema_id': null},
       ],
       'periodos': [
-        {'valor': '30', 'rotulo': 'Últimos 30 dias'},
         {'valor': 'tudo', 'rotulo': 'Todo o período'},
+        {'valor': '30', 'rotulo': 'Últimos 30 dias'},
         {'valor': 'personalizado', 'rotulo': 'Personalizado'},
       ],
       'abas': [
@@ -322,15 +343,23 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.widgetWithText(AppBar, 'Painel'), findsOneWidget);
+    expect(find.text('Todos os temas'), findsOneWidget);
+    expect(find.text('Alimentação'), findsOneWidget);
+    expect(api.chamadas.where((u) => u.path.endsWith('/staff/painel')), isEmpty);
+
+    await tester.tap(find.text('Saúde mental'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(AppBar, 'Painel: Saúde mental'), findsOneWidget);
     expect(find.text('63%'), findsOneWidget);
     expect(find.text('Ansiedade'), findsWidgets);
-    expect(
-      api.chamadas
-          .where((u) => u.path.endsWith('/staff/painel'))
-          .first
-          .queryParameters['periodo'],
-      '30',
-    );
+    final consulta = api.chamadas
+        .where((u) => u.path.endsWith('/staff/painel'))
+        .first
+        .queryParameters;
+    expect(consulta['periodo'], 'tudo');
+    expect(consulta['tema_id'], '3');
+    expect(find.text('Tema: Saúde mental'), findsNothing);
 
     final rolagem = find
         .descendant(
@@ -376,7 +405,8 @@ void main() {
     );
     expect(exportar.queryParameters['turma_id'], '7');
     expect(exportar.queryParameters['escola_id'], '1');
-    expect(exportar.queryParameters['periodo'], '30');
+    expect(exportar.queryParameters['periodo'], 'tudo');
+    expect(exportar.queryParameters['tema_id'], '3');
     expect(
       exportar.queryParameters['abas']!.split(','),
       containsAll(['resumo', 'turmas', 'respostas']),

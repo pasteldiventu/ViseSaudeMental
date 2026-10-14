@@ -15,7 +15,7 @@ final class Db
 
     /** Tabelas com coluna updated_at (atualizada pela aplicação). */
     private const TIMESTAMPED = [
-        'users', 'escolas', 'escola_user', 'professor_turma', 'series', 'turmas',
+        'users', 'escolas', 'escola_user', 'professor_turma', 'series', 'turmas', 'temas',
         'alunos', 'questionarios', 'categorias', 'subcategorias', 'perguntas',
         'opcoes_resposta', 'regras_classificacao', 'aplicacoes_questionario',
         'respostas', 'resultados', 'avatars', 'personal_access_tokens',

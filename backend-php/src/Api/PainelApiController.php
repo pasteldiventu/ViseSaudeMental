@@ -21,11 +21,12 @@ final class PainelApiController
     public static function painel(Request $request): Response
     {
         $ctx = self::ctxResultados($request);
-        $filtros = FiltrosRelatorio::deQuery($request->query, '30')->noEscopo($ctx);
+        $filtros = FiltrosRelatorio::deQuery($request->query)->noEscopo($ctx);
         $ind = new Indicadores($ctx, $filtros);
         $turmas = $ind->porTurma();
         usort($turmas, static fn ($a, $b) => [$a['participacao'] ?? 0, $a['escola'], $a['turma']] <=> [$b['participacao'] ?? 0, $b['escola'], $b['turma']]);
         return Response::json(['data' => [
+            'tema' => ['id' => $filtros->temaId, 'nome' => FiltrosRelatorio::nomeTema($filtros->temaId)],
             'filtros' => ['query' => $filtros->query(), 'descricao' => array_map(static fn ($f) => ['rotulo' => $f[0], 'valor' => $f[1]], $filtros->descricao())],
             'resumo' => $ind->resumo(),
             'evolucao' => $ind->evolucao(),

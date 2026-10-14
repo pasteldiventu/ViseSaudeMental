@@ -144,6 +144,20 @@ final class CadastrosController
 
         $campos = [];
         foreach (Records::formFields($res, $ctx, $row) as $name => $field) {
+            if ($field['type'] === 'checklist') {
+                $itens = Records::checklistItens($field, $ctx, $row);
+                $campos[] = [
+                    'name' => $name,
+                    'label' => $field['label'],
+                    'tipo' => 'checklist',
+                    'obrigatorio' => false,
+                    'max' => null,
+                    'ajuda' => $field['help'] ?? null,
+                    'opcoes' => array_map(static fn (array $i) => ['valor' => $i['valor'], 'label' => $i['label'], 'indisponivel' => $i['indisponivel']], $itens),
+                    'valor' => array_values(array_map(static fn (array $i) => $i['valor'], array_filter($itens, static fn (array $i) => $i['marcado']))),
+                ];
+                continue;
+            }
             if ($row !== null) {
                 $valor = $row[$name] ?? null;
             } elseif (isset($request->query[$name]) && is_string($request->query[$name])) {

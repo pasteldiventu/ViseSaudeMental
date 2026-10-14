@@ -8,6 +8,7 @@ IconData iconeDoCadastro(String key) => switch (key) {
   'series' => Icons.stairs_outlined,
   'turmas' => Icons.groups_2_outlined,
   'alunos' => Icons.face_outlined,
+  'temas' => Icons.sell_outlined,
   'questionarios' => Icons.assignment_outlined,
   'categorias' => Icons.folder_outlined,
   'subcategorias' => Icons.folder_open_outlined,

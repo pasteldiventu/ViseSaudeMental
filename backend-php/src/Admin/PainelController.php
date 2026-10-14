@@ -27,7 +27,10 @@ final class PainelController
         if (!$ctx->canAccess('resultado')) {
             return View::page($ctx, 'Painel', self::cadastros($ctx), 'dashboard');
         }
-        $filtros = FiltrosRelatorio::deQuery(Auth::comFoco($ctx, $request->query), '30')->noEscopo($ctx);
+        if (!array_key_exists('tema_id', $request->query)) {
+            return self::escolhaTema($ctx);
+        }
+        $filtros = FiltrosRelatorio::deQuery(Auth::comFoco($ctx, $request->query))->noEscopo($ctx);
         $ind = new Indicadores($ctx, $filtros);
         $r = $ind->resumo();
 
@@ -62,12 +65,64 @@ final class PainelController
             . '</div>';
         $html .= '<details class="card"><summary><strong>Resumo dos cadastros</strong></summary>' . self::cadastros($ctx) . '</details>';
 
-        $acoes = '';
+        $acoes = '<a class="btn" href="' . View::e(Url::to('/admin')) . '">' . View::icone('trocar', 16) . 'Trocar tema</a>';
         if (ImportacaoService::tiposPermitidos($ctx) !== []) {
             $acoes .= '<a class="btn btn-outline" href="' . View::e(Url::to('/admin/importar')) . '">' . View::icone('importar', 16) . 'Importar planilha</a>';
         }
         $acoes .= '<a class="btn btn-primary" href="' . View::e(Url::to('/admin/relatorios', $filtros->query())) . '">' . View::icone('relatorios', 16) . 'Gerar relatório</a>';
-        return View::page($ctx, 'Painel', $html, 'dashboard', $acoes, 200, 'Visão geral da participação e dos níveis de atenção dos alunos.');
+        return View::page(
+            $ctx,
+            'Painel: ' . FiltrosRelatorio::nomeTema($filtros->temaId),
+            $html,
+            'dashboard',
+            $acoes,
+            200,
+            'Visão geral da participação e dos níveis de atenção dos alunos.',
+            ['tema_id' => self::temaQuery($filtros)]
+        );
+    }
+
+    /** Início do painel: o usuário escolhe "Todos os temas" ou um tema antes de ver os indicadores. */
+    private static function escolhaTema(Ctx $ctx): Response
+    {
+        $temas = OpcoesFiltro::temas($ctx);
+        $html = '<div class="temas">'
+            . self::cartaoTema(Url::to('/admin', ['tema_id' => 'todos']), View::icone('dashboard', 26), 'Todos os temas', 'Indicadores de todos os questionários, com ou sem tema.', null, 'Visão geral', true);
+        foreach ($temas as $t) {
+            $html .= self::cartaoTema(
+                Url::to('/admin', ['tema_id' => $t['id']]),
+                View::e($t['emoji'] ?: mb_substr($t['nome'], 0, 1)),
+                $t['nome'],
+                (string) ($t['descricao'] ?? ''),
+                $t['cor'],
+                $t['questionarios'] . ' questionário(s)',
+            );
+        }
+        $html .= '</div>';
+        if ($temas === []) {
+            $html .= '<p class="muted small">Nenhum tema cadastrado ainda.'
+                . ($ctx->canWrite('tema') ? ' <a href="' . View::e(Url::to('/admin/temas/create')) . '">Cadastre o primeiro tema</a> e atribua os questionários a ele.' : '') . '</p>';
+        }
+        $acoes = $ctx->canWrite('tema')
+            ? '<a class="btn btn-outline" href="' . View::e(Url::to('/admin/temas')) . '">' . View::icone('temas', 16) . 'Gerenciar temas</a>'
+            : '';
+        return View::page($ctx, 'Painel', $html, 'dashboard', $acoes, 200, 'Escolha um tema para ver os indicadores.');
+    }
+
+    private static function cartaoTema(string $href, string $iconeHtml, string $nome, string $descricao, ?string $cor, string $meta, bool $todos = false): string
+    {
+        $estilo = $cor !== null && preg_match('/^#[0-9a-f]{3,8}$/i', $cor) ? ' style="--tema: ' . $cor . '"' : '';
+        return '<a class="tema-card' . ($todos ? ' tema-todos' : '') . '" href="' . View::e($href) . '"' . $estilo . '>'
+            . '<span class="tema-icone">' . $iconeHtml . '</span>'
+            . '<span class="tema-nome">' . View::e($nome) . '</span>'
+            . '<span class="tema-desc">' . View::e($descricao) . '</span>'
+            . '<span class="tema-meta"><span>' . View::e($meta) . '</span><span class="kpi-arrow">' . View::icone('seta', 16) . '</span></span></a>';
+    }
+
+    /** Valor de tema_id que mantém o usuário no painel (sem voltar para a escolha do tema). */
+    private static function temaQuery(FiltrosRelatorio $f): string
+    {
+        return $f->temaId === null ? 'todos' : (string) $f->temaId;
     }
 
     public static function relatorios(Request $request): Response
@@ -280,10 +335,13 @@ final class PainelController
 
     private static function filtrosDashboard(Ctx $ctx, FiltrosRelatorio $f): string
     {
+        $tema = self::temaQuery($f);
+        $semTema = array_diff_key($f->query(), ['tema_id' => true]);
         return '<form class="card filter-bar" method="get" action="' . View::e(Url::to('/admin')) . '">'
+            . '<input type="hidden" name="tema_id" value="' . View::e($tema) . '">'
             . self::camposFiltro($ctx, $f, false)
             . '<div class="filter-actions"><button class="btn" type="submit">Aplicar</button>'
-            . ($f->query() !== ['periodo' => '30'] ? ' <a class="btn btn-link" href="' . View::e(Url::to('/admin')) . '">Limpar</a>' : '')
+            . ($semTema !== ['periodo' => 'tudo'] ? ' <a class="btn btn-link" href="' . View::e(Url::to('/admin', ['tema_id' => $tema])) . '">Limpar</a>' : '')
             . '</div></form>';
     }
 
@@ -299,15 +357,23 @@ final class PainelController
             return $html . '</select></label>';
         };
 
+        $html = '';
+        if ($completo) {
+            $temas = array_column(OpcoesFiltro::temas($ctx), 'nome', 'id');
+            if ($f->temaId !== null && !isset($temas[$f->temaId])) {
+                $temas[$f->temaId] = FiltrosRelatorio::nomeTema($f->temaId);
+            }
+            $html .= $select('tema_id', 'Tema', $temas, $f->temaId, 'Todos os temas');
+        }
         $escolas = Resources::options('escolas', $ctx, false);
-        $html = count($escolas) > 1 || $f->escolaId !== null ? $select('escola_id', 'Escola', $escolas, $f->escolaId, 'Todas as escolas') : '';
+        $html .= count($escolas) > 1 || $f->escolaId !== null ? $select('escola_id', 'Escola', $escolas, $f->escolaId, 'Todas as escolas') : '';
         $html .= $select('turma_id', 'Turma', self::turmas($ctx, $f->escolaId, count($escolas) > 1 && $f->escolaId === null), $f->turmaId, 'Todas as turmas');
         if ($completo) {
             $html .= $select('serie_id', 'Série', Resources::options('series', $ctx, false), $f->serieId, 'Todas as séries');
             $html .= $select('turno', 'Turno', Resources::TURNOS, $f->turno, 'Todos os turnos');
             $html .= $select('sexo', 'Sexo', OpcoesFiltro::sexos($ctx), $f->sexo, 'Todos');
         }
-        $html .= $select('questionario_id', 'Questionário', Resources::options('questionarios', $ctx, false), $f->questionarioId, 'Todos os questionários');
+        $html .= $select('questionario_id', 'Questionário', array_column(OpcoesFiltro::questionarios($ctx, $f->temaId), 'nome', 'id'), $f->questionarioId, 'Todos os questionários');
         $periodos = FiltrosRelatorio::PERIODOS + ($completo ? ['personalizado' => 'Personalizado (datas abaixo)'] : []);
         $html .= $select('periodo', 'Período', $periodos, $f->periodo, null);
         if ($completo) {

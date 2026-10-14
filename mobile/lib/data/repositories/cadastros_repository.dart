@@ -269,10 +269,13 @@ class RegistroDetalhe {
 }
 
 class OpcaoCampo {
-  OpcaoCampo({required this.valor, required this.label});
+  OpcaoCampo({required this.valor, required this.label, this.indisponivel});
 
   final String valor;
   final String label;
+
+  /// Motivo de a opção não poder ser marcada (checklist), ex.: "já está no tema Y".
+  final String? indisponivel;
 }
 
 class CampoFormulario {
@@ -302,6 +305,7 @@ class CampoFormulario {
                   (o) => OpcaoCampo(
                     valor: o['valor'].toString(),
                     label: o['label'].toString(),
+                    indisponivel: o['indisponivel']?.toString(),
                   ),
                 )
                 .toList()

@@ -11,7 +11,7 @@ import '../escola_foco.dart';
 import 'painel_screen.dart';
 import 'painel_widgets.dart';
 
-/// Relatório em Excel com filtros (escola, turma, série, turno, sexo, questionário, período).
+/// Relatório em Excel com filtros (tema, escola, turma, série, turno, sexo, questionário, período).
 class RelatoriosScreen extends ConsumerStatefulWidget {
   const RelatoriosScreen({
     super.key,
@@ -171,6 +171,25 @@ class _RelatoriosScreenState extends ConsumerState<RelatoriosScreen> {
               'Deixe em branco para incluir tudo o que seu perfil pode ver.',
           child: Column(
             children: [
+              if (o.temas.isNotEmpty)
+                campo(
+                  SeletorOpcao(
+                    rotulo: 'Tema',
+                    vazio: 'Todos os temas',
+                    valor: _filtros['tema_id'],
+                    opcoes: [for (final t in o.temas) Opcao(t.id, t.nome)],
+                    onChanged: (v) {
+                      _definir('tema_id', v);
+                      final questionario = _filtros['questionario_id'];
+                      if (questionario != null &&
+                          !o
+                              .questionariosDoTema(v)
+                              .any((q) => q.valor == questionario)) {
+                        _definir('questionario_id', null);
+                      }
+                    },
+                  ),
+                ),
               if (o.escolas.length > 1)
                 campo(
                   SeletorOpcao(
@@ -242,10 +261,11 @@ class _RelatoriosScreenState extends ConsumerState<RelatoriosScreen> {
                 ),
               campo(
                 SeletorOpcao(
+                  key: ValueKey('questionario-${_filtros['tema_id']}'),
                   rotulo: 'Questionário',
                   vazio: 'Todos os questionários',
                   valor: _filtros['questionario_id'],
-                  opcoes: o.questionarios,
+                  opcoes: o.questionariosDoTema(_filtros['tema_id']),
                   onChanged: (v) => _definir('questionario_id', v),
                 ),
               ),

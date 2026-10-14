@@ -819,10 +819,14 @@ $testes['painel web: dashboard, relatórios, exportações e importação'] = fu
     Seed::respostasDemo(30);
     foreach (['admin@vise.local', 'admin.escola@vise.local', 'pesquisador@vise.local', 'professor@vise.local'] as $email) {
         T::eq(302, adminLogin($email), "login $email");
-        $home = T::http('GET', '/admin?periodo=90');
+        $escolha = T::http('GET', '/admin');
+        T::check(str_contains($escolha['body'], 'Escolha um tema') && str_contains($escolha['body'], 'Saúde mental'), "Início pede o tema ($email)");
+        T::check(!str_contains($escolha['body'], 'Níveis de atenção'), "sem indicadores antes do tema ($email)");
+        $home = T::http('GET', '/admin?tema_id=todos&periodo=90');
         T::eq(200, $home['status'], "dashboard $email");
+        T::check(str_contains($home['body'], 'Painel: Todos os temas') && str_contains($home['body'], 'Trocar tema'), "título com o tema ($email)");
         T::check(str_contains($home['body'], 'Participação') && str_contains($home['body'], 'Níveis de atenção'), "dashboard com indicadores ($email)");
-        T::eq(200, T::http('GET', '/admin?periodo=7&questionario_id=1&turma_id=999')['status'], "dashboard filtrado ($email)");
+        T::eq(200, T::http('GET', '/admin?tema_id=todos&periodo=7&questionario_id=1&turma_id=999')['status'], "dashboard filtrado ($email)");
         $rel = T::http('GET', '/admin/relatorios?periodo=personalizado&inicio=2020-01-01&fim=2030-01-01');
         T::eq(200, $rel['status'], "relatórios $email");
         $xlsx = T::http('GET', '/admin/relatorios/exportar?abas[]=turmas&abas[]=alunos&abas[]=perguntas&abas[]=pendentes&abas[]=respostas');
@@ -903,6 +907,75 @@ $testes['API staff: painel, opções, relatório e importação'] = function ():
     T::eq(200, T::http('GET', '/api/v1/staff/painel', null, $prof)['status'], 'professor vê o painel');
     T::eq([], T::http('GET', '/api/v1/staff/importacao', null, $prof)['json']['data'] ?? null, 'professor sem tipos de importação');
     T::eq(401, T::http('GET', '/api/v1/staff/painel')['status'], 'painel exige login');
+};
+
+$testes['temas: cadastro, atribuição, filtros e painel'] = function (): void {
+    Seed::respostasDemo(20);
+    $saude = (int) Db::value("SELECT id FROM temas WHERE nome = 'Saúde mental'");
+    $convivio = (int) Db::value("SELECT id FROM temas WHERE nome = 'Convívio escolar'");
+    $bem = (int) Db::value("SELECT id FROM questionarios WHERE nome = 'Bem-estar emocional - Demo'");
+    T::eq($saude, (int) Db::value('SELECT tema_id FROM questionarios WHERE id = ?', [$bem]), 'seed atribui tema');
+    $now = Db::now();
+    $escola = (int) Db::value("SELECT id FROM escolas WHERE inep = '00000001'");
+    $adminId = (int) Db::value("SELECT id FROM users WHERE email = 'admin@vise.local'");
+    $livre = Db::insert('questionarios', ['nome' => 'Hábitos alimentares', 'escola_id' => $escola, 'pesquisador_id' => $adminId, 'status' => 'rascunho', 'versao' => 1, 'created_at' => $now, 'updated_at' => $now]);
+
+    T::eq(302, adminLogin('admin.escola@vise.local'), 'login admin escola');
+    T::eq(403, T::http('GET', '/admin/temas')['status'], 'só o admin geral gerencia temas');
+
+    T::eq(302, adminLogin('admin@vise.local'), 'login admin geral');
+    $form = T::http('GET', '/admin/temas/create');
+    T::eq(200, $form['status'], 'formulário de tema');
+    T::check(str_contains($form['body'], 'Atribuir questionários a este tema?'), 'pergunta de atribuição');
+    T::check(str_contains($form['body'], 'Indisponível: já está no tema &quot;Saúde mental&quot;'), 'questionário de outro tema indisponível');
+    T::check((bool) preg_match('/<input type="checkbox" name="questionarios\[\]" value="' . $bem . '"[^>]*disabled/', $form['body']), 'checkbox desabilitado');
+    $csrf = T::csrf($form['body']);
+    $r = T::http('POST', '/admin/temas/create', null, [], [
+        '_csrf' => $csrf, 'nome' => 'Alimentação', 'emoji' => '🍎', 'cor' => '#F59E0B', 'ativo' => '1',
+        'questionarios[0]' => '', 'questionarios[1]' => (string) $livre,
+    ]);
+    T::eq(302, $r['status'], 'cria tema: ' . substr(strip_tags($r['body']), 0, 300));
+    $alimentacao = (int) Db::value("SELECT id FROM temas WHERE nome = 'Alimentação'");
+    T::eq($alimentacao, (int) Db::value('SELECT tema_id FROM questionarios WHERE id = ?', [$livre]), 'questionário atribuído ao criar o tema');
+
+    $roubo = T::http('POST', "/admin/temas/$alimentacao/edit", null, [], [
+        '_csrf' => $csrf, 'nome' => 'Alimentação', 'ativo' => '1', 'questionarios[0]' => (string) $livre, 'questionarios[1]' => (string) $bem,
+    ]);
+    T::eq(422, $roubo['status'], 'não toma questionário de outro tema');
+    T::eq($saude, (int) Db::value('SELECT tema_id FROM questionarios WHERE id = ?', [$bem]), 'tema original mantido');
+
+    $q = T::http('POST', "/admin/questionarios/$livre/edit", null, [], [
+        '_csrf' => $csrf, 'nome' => 'Hábitos alimentares', 'escola_id' => (string) $escola, 'tema_id' => (string) $convivio, 'status' => 'rascunho', 'versao' => '1',
+    ]);
+    T::eq(302, $q['status'], 'troca o tema no cadastro do questionário: ' . substr(strip_tags($q['body']), 0, 300));
+    T::eq($convivio, (int) Db::value('SELECT tema_id FROM questionarios WHERE id = ?', [$livre]), 'tema trocado');
+
+    $escolha = T::http('GET', '/admin');
+    T::check(str_contains($escolha['body'], 'Alimentação') && str_contains($escolha['body'], "/admin?tema_id=$saude"), 'cartões de tema no Início');
+    $painel = T::http('GET', "/admin?tema_id=$saude");
+    T::check(str_contains($painel['body'], 'Painel: Saúde mental'), 'título com o nome do tema');
+    $ctx = \Vise\Admin\Auth::buildContext($adminId);
+    $vazio = new Indicadores($ctx, FiltrosRelatorio::deQuery(['tema_id' => (string) $alimentacao]));
+    T::eq(0, $vazio->resumo()['concluidos'], 'tema sem questionário aplicado não tem resultados');
+    $comTema = new Indicadores($ctx, FiltrosRelatorio::deQuery(['tema_id' => (string) $saude]));
+    T::check($comTema->resumo()['concluidos'] > 0, 'tema com resultados');
+    $foraDoTema = FiltrosRelatorio::deQuery(['tema_id' => (string) $alimentacao, 'questionario_id' => (string) $bem])->noEscopo($ctx);
+    T::eq(null, $foraDoTema->questionarioId, 'questionário de outro tema descartado do filtro');
+    T::eq('tudo', FiltrosRelatorio::deQuery([])->periodo, 'período padrão: todo o período');
+
+    $h = staffAuth('admin.escola@vise.local');
+    $api = T::http('GET', "/api/v1/staff/painel?tema_id=$saude", null, $h);
+    T::eq('Saúde mental', $api['json']['data']['tema']['nome'] ?? null, 'API devolve o tema');
+    $opcoes = T::http('GET', '/api/v1/staff/relatorios/opcoes', null, $h)['json']['data'] ?? [];
+    T::check(in_array('Alimentação', array_column($opcoes['temas'] ?? [], 'nome'), true), 'opções trazem os temas');
+    T::check(in_array($saude, array_map('intval', array_column($opcoes['questionarios'] ?? [], 'tema_id')), true), 'questionários trazem o tema');
+
+    $v = QuestionarioService::criarNovaVersao($bem);
+    T::eq($saude, (int) Db::value('SELECT tema_id FROM questionarios WHERE id = ?', [$v]), 'nova versão mantém o tema');
+
+    $del = T::http('POST', "/admin/temas/$saude/delete", null, [], ['_csrf' => $csrf]);
+    T::eq(302, $del['status'], 'exclui tema');
+    T::eq(0, (int) Db::value('SELECT COUNT(*) FROM questionarios WHERE tema_id = ?', [$saude]), 'questionários ficam sem tema');
 };
 
 $testes['importar backup do sistema anterior'] = function (): void {
