@@ -345,7 +345,10 @@ void main() {
     expect(find.widgetWithText(AppBar, 'Painel'), findsOneWidget);
     expect(find.text('Todos os temas'), findsOneWidget);
     expect(find.text('Alimentação'), findsOneWidget);
-    expect(api.chamadas.where((u) => u.path.endsWith('/staff/painel')), isEmpty);
+    expect(
+      api.chamadas.where((u) => u.path.endsWith('/staff/painel')),
+      isEmpty,
+    );
 
     await tester.tap(find.text('Saúde mental'));
     await tester.pumpAndSettle();

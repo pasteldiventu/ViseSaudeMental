@@ -108,22 +108,169 @@ class MenuCadastros {
   final Map<String, CadastroMeta> cadastros;
 }
 
+/// Situação de um resultado: `nivel` baixo | moderado | alto | null.
+class SeloNivel {
+  SeloNivel({required this.nivel, required this.texto});
+
+  factory SeloNivel.fromJson(Map<String, dynamic> json) => SeloNivel(
+    nivel: json['nivel']?.toString(),
+    texto: json['texto']?.toString() ?? 'Sem classificação',
+  );
+
+  final String? nivel;
+  final String texto;
+}
+
 class RegistroResumo {
   RegistroResumo({
     required this.id,
     required this.titulo,
     required this.colunas,
+    this.selo,
   });
 
   factory RegistroResumo.fromJson(Map<String, dynamic> json) => RegistroResumo(
     id: _int(json['id']),
     titulo: json['titulo']?.toString() ?? '',
     colunas: _strings(json['colunas']),
+    selo: json['selo'] is Map
+        ? SeloNivel.fromJson(Map<String, dynamic>.from(json['selo'] as Map))
+        : null,
   );
 
   final int id;
   final String titulo;
   final List<String> colunas;
+  final SeloNivel? selo;
+}
+
+class RespostaDoAluno {
+  RespostaDoAluno({
+    required this.numero,
+    required this.texto,
+    required this.respondida,
+    this.resposta,
+    this.emoji,
+    this.pontos,
+  });
+
+  factory RespostaDoAluno.fromJson(Map<String, dynamic> json) =>
+      RespostaDoAluno(
+        numero: _int(json['numero']),
+        texto: json['texto']?.toString() ?? '',
+        respondida: json['respondida'] == true,
+        resposta: json['resposta']?.toString(),
+        emoji: json['emoji']?.toString(),
+        pontos: json['pontos'] == null ? null : _int(json['pontos']),
+      );
+
+  final int numero;
+  final String texto;
+  final bool respondida;
+  final String? resposta;
+  final String? emoji;
+  final int? pontos;
+}
+
+class CategoriaResultado {
+  CategoriaResultado({
+    required this.nome,
+    required this.nivelRotulo,
+    required this.perguntas,
+    this.cor,
+    this.total,
+    this.rotulo,
+    this.descricao,
+    this.nivel,
+  });
+
+  factory CategoriaResultado.fromJson(Map<String, dynamic> json) =>
+      CategoriaResultado(
+        nome: json['nome']?.toString() ?? '',
+        cor: json['cor']?.toString(),
+        total: (json['total'] as num?)?.toDouble(),
+        rotulo: json['rotulo']?.toString(),
+        descricao: json['descricao']?.toString(),
+        nivel: json['nivel']?.toString(),
+        nivelRotulo: json['nivel_rotulo']?.toString() ?? 'Sem classificação',
+        perguntas: _maps(
+          json['perguntas'],
+        ).map(RespostaDoAluno.fromJson).toList(),
+      );
+
+  final String nome;
+  final String? cor;
+  final double? total;
+  final String? rotulo;
+  final String? descricao;
+  final String? nivel;
+  final String nivelRotulo;
+  final List<RespostaDoAluno> perguntas;
+}
+
+/// Resultado de um aluno: situação, classificação por categoria e respostas.
+class ResultadoAluno {
+  ResultadoAluno({
+    required this.alunoId,
+    required this.aluno,
+    required this.nivelRotulo,
+    required this.observacao,
+    required this.aplicacaoId,
+    required this.respondidas,
+    required this.totalPerguntas,
+    required this.categorias,
+    this.nivel,
+    this.turma,
+    this.turno,
+    this.escola,
+    this.questionario,
+    this.codigoSala,
+    this.concluidoEm,
+  });
+
+  factory ResultadoAluno.fromJson(Map<String, dynamic> json) {
+    final aluno = json['aluno'] is Map ? json['aluno'] as Map : const {};
+    final aplicacao = json['aplicacao'] is Map
+        ? json['aplicacao'] as Map
+        : const {};
+    return ResultadoAluno(
+      alunoId: _int(aluno['id']),
+      aluno: aluno['nome']?.toString() ?? '',
+      nivel: json['nivel']?.toString(),
+      nivelRotulo: json['nivel_rotulo']?.toString() ?? 'Sem classificação',
+      observacao: json['observacao']?.toString() ?? '',
+      turma: json['turma']?.toString(),
+      turno: json['turno']?.toString(),
+      escola: json['escola']?.toString(),
+      questionario: json['questionario']?.toString(),
+      aplicacaoId: _int(aplicacao['id']),
+      codigoSala: aplicacao['codigo_sala']?.toString(),
+      concluidoEm: json['concluido_em']?.toString(),
+      respondidas: _int(json['respondidas']),
+      totalPerguntas: _int(json['total_perguntas']),
+      categorias: _maps(
+        json['categorias'],
+      ).map(CategoriaResultado.fromJson).toList(),
+    );
+  }
+
+  final int alunoId;
+  final String aluno;
+  final String? nivel;
+  final String nivelRotulo;
+  final String observacao;
+  final String? turma;
+  final String? turno;
+  final String? escola;
+  final String? questionario;
+  final int aplicacaoId;
+  final String? codigoSala;
+
+  /// UTC, "2026-09-30 13:05:00".
+  final String? concluidoEm;
+  final int respondidas;
+  final int totalPerguntas;
+  final List<CategoriaResultado> categorias;
 }
 
 class FiltroAtivo {
@@ -242,6 +389,7 @@ class RegistroDetalhe {
     required this.campos,
     required this.relacionados,
     required this.acoes,
+    this.resultado,
   });
 
   factory RegistroDetalhe.fromJson(Map<String, dynamic> json) =>
@@ -256,6 +404,11 @@ class RegistroDetalhe {
           json['relacionados'],
         ).map(Relacionado.fromJson).toList(),
         acoes: _maps(json['acoes']).map(AcaoMeta.fromJson).toList(),
+        resultado: json['resultado'] is Map
+            ? ResultadoAluno.fromJson(
+                Map<String, dynamic>.from(json['resultado'] as Map),
+              )
+            : null,
       );
 
   final int id;
@@ -266,6 +419,9 @@ class RegistroDetalhe {
   final List<CampoDetalhe> campos;
   final List<Relacionado> relacionados;
   final List<AcaoMeta> acoes;
+
+  /// Só no cadastro de resultados.
+  final ResultadoAluno? resultado;
 }
 
 class OpcaoCampo {

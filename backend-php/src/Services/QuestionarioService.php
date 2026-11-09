@@ -109,6 +109,7 @@ final class QuestionarioService
                 'versao' => (int) $original['versao'] + 1,
                 'parent_id' => $original['id'],
                 'compartilhado_na_escola' => (int) $original['compartilhado_na_escola'],
+                'mostrar_retorno' => (int) ($original['mostrar_retorno'] ?? 1),
             ] + $stamp);
 
             $categoriasMap = [];
@@ -195,6 +196,8 @@ final class QuestionarioService
                     'max_score' => $regra['max_score'],
                     'rotulo' => $regra['rotulo'],
                     'descricao' => $regra['descricao'],
+                    'mensagem_aluno' => $regra['mensagem_aluno'] ?? null,
+                    'nivel' => $regra['nivel'] ?? null,
                 ] + $stamp);
             }
             return $novoId;

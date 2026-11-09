@@ -8,6 +8,7 @@ import '../../providers/app_providers.dart';
 import '../common/brand_and_progress.dart';
 import '../common/tactile_button.dart';
 import '../common/ui_kit.dart';
+import '../finish/finish_screen.dart';
 
 class HomeQuestionariosScreen extends ConsumerWidget {
   const HomeQuestionariosScreen({super.key});
@@ -264,7 +265,7 @@ class _AplicacaoCard extends ConsumerWidget {
                 ? 'Sem perguntas'
                 : '$localAnswered de $total perguntas';
             final action = finalizado
-                ? 'Ver'
+                ? 'Ver retorno'
                 : localAnswered > 0
                 ? 'Continuar'
                 : 'Começar';
@@ -338,9 +339,18 @@ class _AplicacaoCard extends ConsumerWidget {
                           width: 140,
                           child: TactileButton(
                             height: 44,
-                            onPressed: () => ref
-                                .read(appControllerProvider)
-                                .abrirAplicacao(aplicacao.id),
+                            onPressed: finalizado
+                                ? () => Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => FinishScreen(
+                                        aplicacaoId: aplicacao.id,
+                                        revisao: true,
+                                      ),
+                                    ),
+                                  )
+                                : () => ref
+                                      .read(appControllerProvider)
+                                      .abrirAplicacao(aplicacao.id),
                             child: Text(action),
                           ),
                         ),

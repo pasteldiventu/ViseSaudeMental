@@ -183,6 +183,15 @@ class QuizRepository {
     );
   }
 
+  /// Null quando o questionário não mostra retorno ou ainda não foi concluído no servidor.
+  Future<RetornoAluno?> retorno(int aplicacaoId) async {
+    final response = await api.dio.get<dynamic>(
+      '/aplicacoes/$aplicacaoId/retorno',
+    );
+    final data = (response.data as Map?)?['data'];
+    return data is Map ? RetornoAluno.fromJson(data) : null;
+  }
+
   Future<String?> _downloadImage(String? url) async {
     if (kIsWeb || url == null || !url.startsWith('http')) return null;
     try {
@@ -217,4 +226,49 @@ class QuizRepository {
     final result = value?.toString().trim();
     return result == null || result.isEmpty ? null : result;
   }
+}
+
+/// Tom do retorno: `bem`, `atencao`, `cuidado` ou `neutro`.
+class RetornoAluno {
+  const RetornoAluno({
+    required this.mensagem,
+    required this.tom,
+    required this.categorias,
+    this.ajuda,
+  });
+
+  factory RetornoAluno.fromJson(Map<dynamic, dynamic> json) => RetornoAluno(
+    mensagem: json['mensagem']?.toString() ?? '',
+    tom: json['tom']?.toString() ?? 'neutro',
+    ajuda: QuizRepository._nullable(json['ajuda']),
+    categorias: [
+      for (final item in (json['categorias'] as List? ?? const []))
+        if (item is Map)
+          RetornoCategoria(
+            nome: item['nome']?.toString() ?? '',
+            tom: item['tom']?.toString() ?? 'neutro',
+            emoji: item['emoji']?.toString() ?? '💬',
+            mensagem: item['mensagem']?.toString() ?? '',
+          ),
+    ],
+  );
+
+  final String mensagem;
+  final String tom;
+  final List<RetornoCategoria> categorias;
+  final String? ajuda;
+}
+
+class RetornoCategoria {
+  const RetornoCategoria({
+    required this.nome,
+    required this.tom,
+    required this.emoji,
+    required this.mensagem,
+  });
+
+  final String nome;
+  final String tom;
+  final String emoji;
+  final String mensagem;
 }

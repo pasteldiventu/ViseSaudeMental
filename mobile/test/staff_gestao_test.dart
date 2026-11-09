@@ -136,6 +136,7 @@ class _FakeApi implements HttpClientAdapter {
     String plural,
     String grupo, {
     List<Map<String, dynamic>> acoes = const [],
+    List<String> colunas = const ['Nome', 'Status', 'Versão'],
   }) => {
     'key': key,
     'singular': singular,
@@ -144,7 +145,7 @@ class _FakeApi implements HttpClientAdapter {
     'pode_criar': true,
     'busca': true,
     'busca_label': 'nome',
-    'colunas': ['Nome', 'Status', 'Versão'],
+    'colunas': colunas,
     'acoes': acoes,
   };
 
@@ -197,6 +198,14 @@ class _FakeApi implements HttpClientAdapter {
                 'Resultado',
                 'Resultados',
                 'Aplicação e dados',
+                colunas: [
+                  'Aluno',
+                  'Turma',
+                  'Questionário',
+                  'Resultado',
+                  'Situação',
+                  'Concluído em',
+                ],
               ),
             ],
           },
@@ -277,6 +286,89 @@ class _FakeApi implements HttpClientAdapter {
                 'confirmar': 'Publicar?',
               },
             ],
+          },
+        );
+      case 'GET /staff/cadastros/resultados':
+        return (
+          200,
+          {
+            'data': [
+              {
+                'id': 5,
+                'titulo': 'Ana Souza · Bem-estar',
+                'colunas': [
+                  'Ana Souza',
+                  '9º Ano A',
+                  'Bem-estar (v1 · publicado)',
+                  'Humor: Moderado',
+                  'Atenção',
+                  '30/09/2026 10:00',
+                ],
+                'selo': {'nivel': 'moderado', 'texto': 'Atenção'},
+              },
+            ],
+            'total': 1,
+            'page': 1,
+            'pages': 1,
+            'filtros': [],
+          },
+        );
+      case 'GET /staff/cadastros/resultados/5':
+        return (
+          200,
+          {
+            'id': 5,
+            'key': 'resultados',
+            'singular': 'Resultado',
+            'titulo': 'Ana Souza · Bem-estar',
+            'pode_editar': false,
+            'campos': [],
+            'relacionados': [],
+            'acoes': [],
+            'resultado': {
+              'nivel': 'moderado',
+              'nivel_rotulo': 'Atenção',
+              'observacao': 'Acompanhar',
+              'aluno': {'id': 9, 'nome': 'Ana Souza', 'matricula': null},
+              'turma': '9º Ano A',
+              'turno': 'matutino',
+              'escola': 'Escola Demo Vise',
+              'questionario': 'Bem-estar (v1)',
+              'aplicacao': {'id': 2, 'codigo_sala': 'ABC123'},
+              'concluido_em': '2026-09-30 13:00:00',
+              'respondidas': 1,
+              'total_perguntas': 2,
+              'categorias': [
+                {
+                  'id': 1,
+                  'nome': 'Humor',
+                  'cor': '#14B8A6',
+                  'total': 3.0,
+                  'rotulo': 'Moderado',
+                  'descricao': 'Conversar com a família.',
+                  'nivel': 'moderado',
+                  'nivel_rotulo': 'Atenção',
+                  'perguntas': [
+                    {
+                      'numero': 1,
+                      'texto': 'Como você se sentiu esta semana?',
+                      'respondida': true,
+                      'resposta': 'Triste',
+                      'emoji': '😢',
+                      'pontos': 3,
+                    },
+                    {
+                      'numero': 2,
+                      'texto': 'Dormiu bem?',
+                      'respondida': false,
+                      'resposta': null,
+                      'emoji': null,
+                      'pontos': null,
+                    },
+                  ],
+                },
+              ],
+            },
           },
         );
     }
@@ -514,10 +606,33 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.chamadas, contains('POST /staff/cadastros/questionarios'));
     expect(
-      (api.corpos['POST /staff/cadastros/questionarios'] as Map)['questionarios'],
+      (api.corpos['POST /staff/cadastros/questionarios']
+          as Map)['questionarios'],
       ['10'],
     );
     expect(find.text('Conteúdo'), findsOneWidget);
+  });
+
+  testWidgets('tablet: resultado com situação e as respostas do aluno', (
+    tester,
+  ) async {
+    await _montar(tester, const Size(1280, 1000));
+    await tester.tap(find.text('Resultados').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Ana Souza'), findsOneWidget);
+    expect(find.text('Atenção'), findsOneWidget);
+    expect(find.textContaining('Turma: 9º Ano A'), findsOneWidget);
+
+    await tester.tap(find.text('Ana Souza'));
+    await tester.pumpAndSettle();
+    expect(find.text('Atenção'), findsOneWidget);
+    expect(find.textContaining('Acompanhar'), findsOneWidget);
+    expect(find.text('Humor'), findsOneWidget);
+    expect(find.text('Moderado'), findsOneWidget);
+    expect(find.text('1. Como você se sentiu esta semana?'), findsOneWidget);
+    expect(find.text('😢 Triste'), findsOneWidget);
+    expect(find.text('Não respondida'), findsOneWidget);
+    expect(find.text('1 de 2'), findsOneWidget);
   });
 
   testWidgets('tablet: menu lateral fixo', (tester) async {

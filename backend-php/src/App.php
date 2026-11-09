@@ -69,6 +69,7 @@ final class App
         $r->post("$api/aplicacoes/$id/respostas", [RespostasController::class, 'salvar']);
         $r->post("$api/aplicacoes/$id/respostas/lote", [RespostasController::class, 'lote']);
         $r->post("$api/aplicacoes/$id/finalizar", [RespostasController::class, 'finalizar']);
+        $r->get("$api/aplicacoes/$id/retorno", [RespostasController::class, 'retorno']);
 
         $r->get("$api/avatar", [AlunoExtrasController::class, 'avatar']);
         $r->post("$api/termos", [AlunoExtrasController::class, 'aceitarTermo']);

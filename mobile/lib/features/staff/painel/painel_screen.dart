@@ -798,7 +798,7 @@ class _CartaoTema extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cor = _corHex(tema.cor) ?? AppColors.mint;
+    final cor = corHex(tema.cor) ?? AppColors.mint;
     return Material(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(AppRadii.lg),
@@ -865,12 +865,6 @@ class _CartaoTema extends StatelessWidget {
       ),
     );
   }
-}
-
-Color? _corHex(String? hex) {
-  final limpo = (hex ?? '').replaceAll('#', '');
-  final valor = limpo.length == 6 ? int.tryParse(limpo, radix: 16) : null;
-  return valor == null ? null : Color(0xFF000000 | valor);
 }
 
 /// Escola, turma e questionário do painel (o período fica nos chips da tela).

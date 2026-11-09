@@ -9,6 +9,7 @@ import '../../../data/repositories/cadastros_repository.dart';
 import '../../../providers/app_providers.dart';
 import '../../common/ui_kit.dart';
 import '../escola_foco.dart';
+import '../painel/painel_widgets.dart' show corDoNivel;
 import 'cadastro_detalhe_screen.dart';
 import 'cadastro_form_screen.dart';
 import 'cadastro_icons.dart';
@@ -335,6 +336,7 @@ class _RegistroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final selo = registro.selo;
     final detalhes = <String>[];
     for (
       var i = 1;
@@ -342,7 +344,7 @@ class _RegistroCard extends StatelessWidget {
       i++
     ) {
       final valor = registro.colunas[i];
-      if (valor != '—' && valor.isNotEmpty) {
+      if (valor != '—' && valor.isNotEmpty && valor != selo?.texto) {
         detalhes.add('${meta.colunas[i]}: $valor');
       }
     }
@@ -350,7 +352,9 @@ class _RegistroCard extends StatelessWidget {
         registro.colunas.isNotEmpty && registro.colunas.first != '—'
         ? registro.colunas.first
         : registro.titulo;
-    final cor = AppColors.pastelFor(principal.hashCode);
+    final cor = selo != null
+        ? corDoNivel(selo.nivel)
+        : AppColors.pastelFor(principal.hashCode);
     return Material(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(AppRadii.md),
@@ -391,6 +395,10 @@ class _RegistroCard extends StatelessWidget {
                         fontSize: 15.5,
                       ),
                     ),
+                    if (selo != null) ...[
+                      const SizedBox(height: 6),
+                      Selo(selo.texto, cor: corDoNivel(selo.nivel)),
+                    ],
                     if (detalhes.isNotEmpty) ...[
                       const SizedBox(height: 6),
                       Text(

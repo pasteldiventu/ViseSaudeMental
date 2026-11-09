@@ -268,6 +268,44 @@ $testes['fluxo completo do aluno'] = function (): void {
     T::eq(422, T::http('POST', '/api/v1/termos', ['versao' => '1.0', 'texto_hash' => 'curto'], $auth)['status'], 'hash inválido');
 };
 
+$testes['retorno ao aluno: acolhedor, sem nível nem pontos'] = function (): void {
+    $s = seedMinimo();
+    Db::run("UPDATE regras_classificacao SET nivel = 'alto'");
+    $auth = ['Authorization' => 'Bearer ' . AlunoTokens::create($s['aluno'])];
+    $url = "/api/v1/aplicacoes/{$s['aplicacao']}/retorno";
+
+    $antes = T::http('GET', $url, null, $auth);
+    T::eq(200, $antes['status'], 'retorno antes de concluir');
+    T::eq(['data' => null], $antes['json'], 'sem retorno antes de concluir');
+
+    T::http('POST', "/api/v1/aplicacoes/{$s['aplicacao']}/respostas", ['pergunta_id' => $s['pergunta'], 'opcao_id' => $s['opcao']], $auth);
+    $fin = T::http('POST', "/api/v1/aplicacoes/{$s['aplicacao']}/finalizar", null, $auth);
+    T::eq(200, $fin['status'], 'finalizar: ' . $fin['body']);
+    $retorno = $fin['json']['retorno'] ?? [];
+    T::eq('cuidado', $retorno['tom'] ?? null, 'tom geral');
+    T::check(str_contains((string) ($retorno['ajuda'] ?? ''), '188'), 'indica o CVV quando há sinal de risco');
+    T::eq('Cat', $retorno['categorias'][0]['nome'] ?? null, 'categoria');
+    T::check(str_contains((string) ($retorno['categorias'][0]['mensagem'] ?? ''), 'professor'), 'mensagem padrão do nível');
+    foreach (['Prioritário', 'verde', 'alto', 'total', 'pontos'] as $proibido) {
+        T::check(!str_contains(json_encode($retorno, JSON_UNESCAPED_UNICODE), $proibido), "não expõe '$proibido' ao aluno");
+    }
+
+    Db::run("UPDATE regras_classificacao SET mensagem_aluno = 'Fale com a orientadora na sala 3.'");
+    $get = T::http('GET', $url, null, $auth);
+    T::eq('Fale com a orientadora na sala 3.', $get['json']['data']['categorias'][0]['mensagem'] ?? null, 'mensagem própria da regra');
+
+    Db::run("UPDATE aplicacoes_questionario SET status = 'encerrada'");
+    T::check((T::http('GET', $url, null, $auth)['json']['data'] ?? null) !== null, 'retorno continua visível após encerrar');
+
+    $now = Db::now();
+    $outro = Db::insert('alunos', ['nome' => 'Bia', 'cpf' => '52998224725', 'data_nascimento' => '2009-01-01', 'escola_id' => $s['escola'], 'turma_id' => $s['turma'], 'created_at' => $now, 'updated_at' => $now]);
+    $alheio = T::http('GET', $url, null, ['Authorization' => 'Bearer ' . AlunoTokens::create($outro)]);
+    T::eq(['data' => null], $alheio['json'], 'não vê o retorno de outro aluno');
+
+    Db::run('UPDATE questionarios SET mostrar_retorno = 0');
+    T::eq(['data' => null], T::http('GET', $url, null, $auth)['json'], 'questionário sem retorno ao aluno');
+};
+
 $testes['aluno não acessa aplicação de outra escola'] = function (): void {
     $s = seedMinimo();
     $now = Db::now();
@@ -907,6 +945,58 @@ $testes['API staff: painel, opções, relatório e importação'] = function ():
     T::eq(200, T::http('GET', '/api/v1/staff/painel', null, $prof)['status'], 'professor vê o painel');
     T::eq([], T::http('GET', '/api/v1/staff/importacao', null, $prof)['json']['data'] ?? null, 'professor sem tipos de importação');
     T::eq(401, T::http('GET', '/api/v1/staff/painel')['status'], 'painel exige login');
+};
+
+$testes['resultados: aluno, turma, situação e respostas dentro do resultado'] = function (): void {
+    Seed::respostasDemo(12);
+    T::check((int) Db::value('SELECT COUNT(*) FROM resultados WHERE nivel IS NOT NULL') > 0, 'situação gravada ao calcular');
+    Db::run('UPDATE resultados SET nivel = NULL');
+    T::check(ResultadoService::recalcularNiveis() > 0, 'migração preenche a situação dos resultados antigos');
+
+    $r = Db::one(
+        "SELECT r.id, r.aluno_id, r.aplicacao_id, r.nivel, al.nome, al.turma_id FROM resultados r JOIN alunos al ON al.id = r.aluno_id
+         WHERE r.nivel IS NOT NULL ORDER BY r.id LIMIT 1"
+    );
+    $resposta = Db::one(
+        'SELECT p.texto, o.descricao FROM respostas rs JOIN perguntas p ON p.id = rs.pergunta_id JOIN opcoes_resposta o ON o.id = rs.opcao_id
+         WHERE rs.aluno_id = ? AND rs.aplicacao_id = ? ORDER BY rs.id LIMIT 1',
+        [$r['aluno_id'], $r['aplicacao_id']]
+    );
+    $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES);
+
+    T::eq(302, adminLogin('admin.escola@vise.local'), 'login admin escola');
+    $lista = T::http('GET', '/admin/resultados');
+    T::eq(200, $lista['status'], 'lista de resultados');
+    foreach (['Aluno', 'Turma', 'Questionário', 'Resultado', 'Situação', $e($r['nome']), 'class="nivel nivel-', 'class="dot n-'] as $trecho) {
+        T::check(str_contains($lista['body'], $trecho), "lista mostra $trecho");
+    }
+    T::check(!str_contains(T::http('GET', '/admin')['body'], '/admin/respostas"'), 'Respostas saiu do menu');
+    T::eq(200, T::http('GET', '/admin/resultados?sort=nivel&dir=desc')['status'], 'ordena pela situação');
+    T::eq(200, T::http('GET', '/admin/resultados?sort=classificacao_json')['status'], 'coluna sem ordenação é ignorada');
+    $busca = T::http('GET', '/admin/resultados?q=' . rawurlencode(mb_substr($r['nome'], 0, 5)));
+    T::check(str_contains($busca['body'], $e($r['nome'])), 'busca pelo nome do aluno');
+    $daTurma = T::http('GET', '/admin/resultados?turma_id=' . $r['turma_id']);
+    T::check(str_contains($daTurma['body'], 'Turma: '), 'filtro por turma');
+
+    $ver = T::http('GET', "/admin/resultados/{$r['id']}");
+    T::eq(200, $ver['status'], 'detalhe do resultado');
+    foreach (['Observação:', 'Perguntas respondidas', $e($resposta['texto']), $e($resposta['descricao']), 'nivel-lg'] as $trecho) {
+        T::check(str_contains($ver['body'], $trecho), "detalhe mostra $trecho");
+    }
+    $apl = T::http('GET', "/admin/aplicacoes/{$r['aplicacao_id']}");
+    T::check(str_contains($apl['body'], '/admin/resultados?aplicacao_id=') && !str_contains($apl['body'], '/admin/respostas?'), 'aplicação leva aos resultados');
+
+    $h = staffAuth('admin.escola@vise.local');
+    $menu = T::http('GET', '/api/v1/staff/cadastros', null, $h)['json'];
+    T::check(!in_array('respostas', array_merge(...array_column($menu['menu'] ?? [], 'itens')), true), 'app sem Respostas no menu');
+    $api = T::http('GET', '/api/v1/staff/cadastros/resultados', null, $h)['json'];
+    T::check(isset($api['data'][0]['selo']['texto']), 'lista do app traz o selo da situação');
+    $det = T::http('GET', "/api/v1/staff/cadastros/resultados/{$r['id']}", null, $h)['json']['resultado'] ?? [];
+    T::eq($r['nome'], $det['aluno']['nome'] ?? null, 'resultado do app traz o aluno');
+    $respostas = array_merge(...array_column($det['categorias'] ?? [], 'perguntas'));
+    T::eq((int) Db::value('SELECT COUNT(*) FROM respostas WHERE aluno_id = ? AND aplicacao_id = ?', [$r['aluno_id'], $r['aplicacao_id']]), $det['respondidas'] ?? null, 'respondidas');
+    T::check(in_array($resposta['descricao'], array_column($respostas, 'resposta'), true), 'resposta do aluno no resultado do app');
+    T::check(in_array($det['nivel_rotulo'] ?? '', ['Adequado', 'Atenção', 'Prioritário'], true), 'situação do app');
 };
 
 $testes['temas: cadastro, atribuição, filtros e painel'] = function (): void {

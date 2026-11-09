@@ -206,7 +206,7 @@ final class View
             . '<title>' . self::e($title) . ' · VISE-MT</title>'
             . '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
             . '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap">'
-            . '<link rel="stylesheet" href="' . self::e(Url::to('/static/admin.css')) . '?v=4">'
+            . '<link rel="stylesheet" href="' . self::e(Url::to('/static/admin.css')) . '?v=7">'
             . '</head><body' . ($classe !== '' ? ' class="' . $classe . '"' : '') . '>' . $body . '</body></html>';
     }
 }

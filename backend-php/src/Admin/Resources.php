@@ -9,7 +9,9 @@ use Vise\Http\HttpError;
 use Vise\Roles;
 use Vise\Security\Password;
 use Vise\Services\CodigoSala;
+use Vise\Services\Indicadores;
 use Vise\Services\QuestionarioService;
+use Vise\Services\ResultadoService;
 use Vise\Support\Str;
 use Vise\Support\Turmas;
 
@@ -18,10 +20,13 @@ use Vise\Support\Turmas;
  *
  * Campo: label, type (text|email|textarea|int|decimal|bool|select|fk|date|datetime|password|json|color|checklist),
  * required, max, options (select), ref + strict (fk), form (false = só leitura), detail,
- * default, display (cpf|resumo), su_only, virtual (não é coluna), create_only, help, upper,
- * itens (checklist: fn(Ctx, ?row) => list<{valor, label, marcado, indisponivel}>), label_edicao ("{nome}" = nome do registro).
+ * default, display (cpf|resumo|nivel|resultado), su_only, virtual (não é coluna), create_only, help, upper,
+ * itens (checklist: fn(Ctx, ?row) => list<{valor, label, marcado, indisponivel}>), label_edicao ("{nome}" = nome do registro),
+ * sql (coluna calculada, alias t; use com form false), sort (false = sem ordenação), sort_sql (expressão de ordenação).
  * Cadastro: options_where (filtra as opções de selects que apontam para ele),
- * nullify (colunas que perdem a referência ao excluir, em vez de bloquear a exclusão).
+ * nullify (colunas que perdem a referência ao excluir, em vez de bloquear a exclusão),
+ * relacionado (false = não aparece nos "Relacionados" de outros cadastros),
+ * resultado (fn(row) => ResultadoService::detalhe: situação, classificação e respostas na tela de detalhe).
  */
 final class Resources
 {
@@ -38,7 +43,7 @@ final class Resources
         'Escolas e equipe' => ['escolas', 'usuarios', 'vinculos', 'professores-turmas'],
         'Turmas e alunos' => ['series', 'turmas', 'alunos'],
         'Instrumentos' => ['temas', 'questionarios', 'categorias', 'subcategorias', 'perguntas', 'opcoes', 'regras'],
-        'Aplicação e dados' => ['aplicacoes', 'respostas', 'resultados', 'termos', 'avatares'],
+        'Aplicação e dados' => ['aplicacoes', 'resultados', 'termos', 'avatares'],
     ];
 
     /** @var array<string, array<string, mixed>>|null */
@@ -422,6 +427,10 @@ final class Resources
                     'status' => ['label' => 'Status', 'type' => 'select', 'options' => self::STATUS_QUESTIONARIO, 'required' => true, 'default' => 'rascunho'],
                     'versao' => ['label' => 'Versão', 'type' => 'int', 'required' => true, 'default' => 1],
                     'compartilhado_na_escola' => ['label' => 'Compartilhado na escola', 'type' => 'bool', 'default' => 0],
+                    'mostrar_retorno' => [
+                        'label' => 'Mostrar retorno ao aluno', 'type' => 'bool', 'default' => 1,
+                        'help' => 'Ao concluir, o aluno vê uma mensagem acolhedora por categoria (sem pontos nem classificação).',
+                    ],
                     'parent_id' => ['label' => 'Versão anterior', 'type' => 'fk', 'ref' => 'questionarios', 'form' => false],
                 ],
                 'validate' => static function (array &$data, ?array $row, Ctx $ctx): void {
@@ -630,7 +639,11 @@ final class Resources
                         'label' => 'Nível de atenção', 'type' => 'select', 'options' => self::NIVEIS,
                         'help' => 'Usado no painel e nos relatórios para destacar quem precisa de acompanhamento.',
                     ],
-                    'descricao' => ['label' => 'Descrição', 'type' => 'textarea'],
+                    'descricao' => ['label' => 'Descrição', 'type' => 'textarea', 'help' => 'Visível só para a equipe.'],
+                    'mensagem_aluno' => [
+                        'label' => 'Mensagem para o aluno', 'type' => 'textarea', 'max' => 1000,
+                        'help' => 'O que o aluno lê ao concluir, se cair nesta faixa. Em branco, usa uma mensagem padrão acolhedora do nível. Evite termos clínicos.',
+                    ],
                     'escola_id' => ['label' => 'Escola', 'type' => 'fk', 'ref' => 'escolas', 'form' => false],
                 ],
                 'validate' => static function (array &$data): void {
@@ -712,6 +725,7 @@ final class Resources
                 'singular' => 'Resposta',
                 'plural' => 'Respostas',
                 'readonly' => true,
+                'relacionado' => false,
                 'title' => "CONCAT(COALESCE(al.nome, ''), ' → pergunta #', t.pergunta_id)",
                 'join' => 'LEFT JOIN alunos al ON al.id = t.aluno_id',
                 'list' => ['aluno_id', 'pergunta_id', 'opcao_id', 'texto', 'responded_at', 'aplicacao_id'],
@@ -735,16 +749,46 @@ final class Resources
                 'singular' => 'Resultado',
                 'plural' => 'Resultados',
                 'readonly' => true,
-                'title' => "CONCAT('Resultado de ', COALESCE(al.nome, CONCAT('aluno #', t.aluno_id)))",
-                'join' => 'LEFT JOIN alunos al ON al.id = t.aluno_id',
-                'list' => ['aluno_id', 'aplicacao_id', 'created_at'],
-                'search' => [],
+                'title' => "CONCAT(COALESCE(al.nome, CONCAT('Aluno #', t.aluno_id)), ' · ', COALESCE(q.nome, 'questionário'))",
+                'join' => 'LEFT JOIN alunos al ON al.id = t.aluno_id LEFT JOIN aplicacoes_questionario ap ON ap.id = t.aplicacao_id LEFT JOIN questionarios q ON q.id = ap.questionario_id',
+                'list' => ['aluno_nome', 'turma_nome', 'questionario_nome', 'classificacao_json', 'nivel', 'created_at'],
+                'search' => ['aluno_nome'],
+                'order' => 't.created_at DESC, t.id DESC',
+                'related_order' => 5,
+                'resultado' => static fn (array $row): ?array => ResultadoService::detalhe((int) $row['id']),
                 'fields' => [
+                    'aluno_nome' => [
+                        'label' => 'Aluno', 'type' => 'text', 'detail' => false,
+                        'sql' => 'SELECT s_al.nome FROM alunos s_al WHERE s_al.id = t.aluno_id',
+                    ],
                     'aluno_id' => ['label' => 'Aluno', 'type' => 'fk', 'ref' => 'alunos'],
+                    'turma_nome' => [
+                        'label' => 'Turma', 'type' => 'text', 'detail' => false,
+                        'sql' => "SELECT CONCAT_WS(' ', s_se.descricao, s_tu.nome) FROM alunos s_al JOIN turmas s_tu ON s_tu.id = s_al.turma_id
+                                  LEFT JOIN series s_se ON s_se.id = s_tu.serie_id WHERE s_al.id = t.aluno_id",
+                    ],
+                    'questionario_nome' => [
+                        'label' => 'Questionário', 'type' => 'text', 'detail' => false,
+                        'sql' => 'SELECT s_q.nome FROM aplicacoes_questionario s_ap JOIN questionarios s_q ON s_q.id = s_ap.questionario_id WHERE s_ap.id = t.aplicacao_id',
+                    ],
+                    'turma_id' => [
+                        'label' => 'Turma', 'type' => 'fk', 'ref' => 'turmas', 'form' => false,
+                        'sql' => 'SELECT s_al.turma_id FROM alunos s_al WHERE s_al.id = t.aluno_id',
+                        'filter' => 't.aluno_id IN (SELECT f_al.id FROM alunos f_al WHERE f_al.turma_id = ?)',
+                    ],
+                    'questionario_id' => [
+                        'label' => 'Questionário', 'type' => 'fk', 'ref' => 'questionarios', 'form' => false,
+                        'sql' => 'SELECT s_ap.questionario_id FROM aplicacoes_questionario s_ap WHERE s_ap.id = t.aplicacao_id',
+                        'filter' => 't.aplicacao_id IN (SELECT f_ap.id FROM aplicacoes_questionario f_ap WHERE f_ap.questionario_id = ?)',
+                    ],
                     'aplicacao_id' => ['label' => 'Aplicação', 'type' => 'fk', 'ref' => 'aplicacoes'],
-                    'totais_json' => ['label' => 'Totais por categoria', 'type' => 'json'],
-                    'classificacao_json' => ['label' => 'Classificação', 'type' => 'json'],
-                    'created_at' => ['label' => 'Calculado em', 'type' => 'datetime'],
+                    'classificacao_json' => ['label' => 'Resultado', 'type' => 'json', 'display' => 'resultado', 'sort' => false, 'detail' => false],
+                    'nivel' => [
+                        'label' => 'Situação', 'type' => 'select', 'options' => Indicadores::NIVEIS, 'display' => 'nivel',
+                        'sort_sql' => "FIELD(t.nivel, 'baixo', 'moderado', 'alto')",
+                    ],
+                    'totais_json' => ['label' => 'Pontos por categoria', 'type' => 'json', 'detail' => false],
+                    'created_at' => ['label' => 'Concluído em', 'type' => 'datetime'],
                 ],
             ],
 

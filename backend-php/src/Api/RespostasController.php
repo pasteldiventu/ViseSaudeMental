@@ -65,7 +65,17 @@ final class RespostasController
             throw new HttpError(422, 'Ainda existem perguntas obrigatórias sem resposta.');
         }
         ResultadoService::calcular((int) $aplicacao['id'], (int) $aluno['id']);
-        return Response::json(['status' => 'concluido']);
+        return Response::json([
+            'status' => 'concluido',
+            'retorno' => ResultadoService::retornoAluno((int) $aplicacao['id'], (int) $aluno['id']),
+        ]);
+    }
+
+    /** @param array<string, string> $params */
+    public static function retorno(Request $request, array $params): Response
+    {
+        $aluno = Guard::aluno($request);
+        return Response::json(['data' => ResultadoService::retornoAluno((int) $params['id'], (int) $aluno['id'])]);
     }
 
     /** @return array<string, mixed> */

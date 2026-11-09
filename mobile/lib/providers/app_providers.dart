@@ -91,6 +91,10 @@ final quizRepositoryProvider = Provider<QuizRepository>(
       QuizRepository(ref.watch(apiClientProvider), ref.watch(databaseProvider)),
 );
 
+final retornoProvider = FutureProvider.autoDispose.family<RetornoAluno?, int>(
+  (ref, aplicacaoId) => ref.watch(quizRepositoryProvider).retorno(aplicacaoId),
+);
+
 final syncRepositoryProvider = Provider<SyncRepository>((ref) {
   final repository = SyncRepository(
     ref.watch(apiClientProvider),

@@ -16,6 +16,13 @@ Color corDoNivel(String? nivel) => switch (nivel) {
   _ => AppColors.locked,
 };
 
+/// "#14B8A6" → cor; null se vazio ou inválido.
+Color? corHex(String? hex) {
+  final limpo = (hex ?? '').replaceAll('#', '');
+  final valor = limpo.length == 6 ? int.tryParse(limpo, radix: 16) : null;
+  return valor == null ? null : Color(0xFF000000 | valor);
+}
+
 String formatarPct(double? valor) {
   if (valor == null) return '—';
   final pct = valor * 100;

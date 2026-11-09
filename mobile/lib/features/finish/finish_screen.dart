@@ -9,11 +9,19 @@ import '../../data/repositories/sync_repository.dart';
 import '../../providers/app_providers.dart';
 import '../common/avatar_bubble.dart';
 import '../common/tactile_button.dart';
+import 'retorno_aluno_view.dart';
 
 class FinishScreen extends ConsumerStatefulWidget {
-  const FinishScreen({super.key, required this.aplicacaoId});
+  const FinishScreen({
+    super.key,
+    required this.aplicacaoId,
+    this.revisao = false,
+  });
 
   final int aplicacaoId;
+
+  /// Aberta pela lista de questionários, depois de concluído.
+  final bool revisao;
 
   @override
   ConsumerState<FinishScreen> createState() => _FinishScreenState();
@@ -29,7 +37,11 @@ class _FinishScreenState extends ConsumerState<FinishScreen> {
     final database = ref.read(databaseProvider);
     final sync = ref.read(syncRepositoryProvider);
     _subscription = sync.state.listen((value) {
-      if (mounted) setState(() => _syncState = value);
+      if (!mounted) return;
+      if (value == SyncState.synced && _syncState != SyncState.synced) {
+        ref.invalidate(retornoProvider(widget.aplicacaoId));
+      }
+      setState(() => _syncState = value);
     });
     database.concluirLocalmente(widget.aplicacaoId).then((_) {
       sync.sincronizar(widget.aplicacaoId).catchError((_) {});
@@ -58,94 +70,111 @@ class _FinishScreenState extends ConsumerState<FinishScreen> {
     }
   }
 
+  void _voltarAosQuestionarios() {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    ref.read(appControllerProvider).voltarParaLista();
+  }
+
+  void _reverRespostas() {
+    Navigator.of(context).pop();
+    ref.read(appControllerProvider).abrirAplicacao(widget.aplicacaoId);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final enviado = _syncState == SyncState.synced;
+    final mensagem = enviado
+        ? ref.watch(retornoProvider(widget.aplicacaoId)).valueOrNull?.mensagem
+        : null;
     return Scaffold(
-      appBar: AppBar(title: const Text('Pronto')),
+      appBar: AppBar(title: Text(widget.revisao ? 'Seu retorno' : 'Pronto')),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Spacer(),
-              Text(
-                'Obrigado por\nparticipar.',
-                style: GoogleFonts.figtree(
-                  fontSize: 36,
-                  fontWeight: FontWeight.w800,
-                  height: 1.05,
-                  letterSpacing: -1.1,
-                ),
-              ),
-              const SizedBox(height: 18),
-              const AvatarBubble(
-                message:
-                    'Suas respostas foram guardadas com cuidado. '
-                    'Elas ajudam a equipe a cuidar melhor da sua escola.',
-              ),
-              const SizedBox(height: 22),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.pastelMint,
-                  borderRadius: BorderRadius.circular(99),
-                ),
-                child: Row(
-                  children: [
-                    Icon(_icon, color: AppColors.ink, size: 22),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        _label,
-                        style: GoogleFonts.figtree(
-                          color: AppColors.ink,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+                children: [
+                  Text(
+                    'Obrigado por\nparticipar.',
+                    style: GoogleFonts.figtree(
+                      fontSize: 36,
+                      fontWeight: FontWeight.w800,
+                      height: 1.05,
+                      letterSpacing: -1.1,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  AvatarBubble(
+                    message:
+                        mensagem ??
+                        'Suas respostas foram guardadas com cuidado. '
+                            'Elas ajudam a equipe a cuidar melhor da sua escola.',
+                  ),
+                  const SizedBox(height: 22),
+                  _StatusEnvio(icone: _icon, texto: _label),
+                  const SizedBox(height: 22),
+                  if (enviado)
+                    RetornoAlunoView(aplicacaoId: widget.aplicacaoId)
+                  else if (_syncState != SyncState.syncing)
+                    Text(
+                      'Seu retorno aparece aqui assim que as respostas '
+                      'forem enviadas.',
+                      style: GoogleFonts.figtree(
+                        color: AppColors.muted,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ],
-                ),
+                ],
               ),
-              const Spacer(),
-              TactileButton(
-                enabled: _syncState != SyncState.syncing,
-                onPressed: _syncState == SyncState.syncing ? null : _sync,
-                child: _syncState == SyncState.syncing
-                    ? const SizedBox.square(
-                        dimension: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.4,
-                          color: Color(0xFF062016),
-                        ),
-                      )
-                    : const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.cloud_upload_rounded),
-                          SizedBox(width: 10),
-                          Text('Enviar ao servidor'),
-                        ],
-                      ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (!enviado)
+                    TactileButton(
+                      enabled: _syncState != SyncState.syncing,
+                      onPressed: _syncState == SyncState.syncing ? null : _sync,
+                      child: _syncState == SyncState.syncing
+                          ? const SizedBox.square(
+                              dimension: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.4,
+                                color: Color(0xFF062016),
+                              ),
+                            )
+                          : const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.cloud_upload_rounded),
+                                SizedBox(width: 10),
+                                Text('Enviar ao servidor'),
+                              ],
+                            ),
+                    ),
+                  const SizedBox(height: 6),
+                  TextButton(
+                    onPressed: _voltarAosQuestionarios,
+                    child: const Text('Voltar aos questionários'),
+                  ),
+                  TextButton(
+                    onPressed: widget.revisao
+                        ? _reverRespostas
+                        : () => Navigator.of(context).pop(),
+                    child: Text(
+                      widget.revisao
+                          ? 'Rever minhas respostas'
+                          : 'Voltar às etapas',
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 10),
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                  ref.read(appControllerProvider).voltarParaLista();
-                },
-                child: const Text('Voltar aos questionários'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Voltar às etapas'),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -164,4 +193,38 @@ class _FinishScreenState extends ConsumerState<FinishScreen> {
     SyncState.error => Icons.cloud_off_rounded,
     SyncState.local => Icons.bookmark_added_rounded,
   };
+}
+
+class _StatusEnvio extends StatelessWidget {
+  const _StatusEnvio({required this.icone, required this.texto});
+
+  final IconData icone;
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppColors.pastelMint,
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Row(
+        children: [
+          Icon(icone, color: AppColors.ink, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              texto,
+              style: GoogleFonts.figtree(
+                color: AppColors.ink,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

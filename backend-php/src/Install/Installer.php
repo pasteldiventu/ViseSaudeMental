@@ -7,6 +7,7 @@ namespace Vise\Install;
 use Vise\Db;
 use Vise\Security\Password;
 use Vise\Services\QuestionarioService;
+use Vise\Services\ResultadoService;
 use Vise\Support\Turmas;
 
 final class Installer
@@ -54,6 +55,18 @@ final class Installer
             Db::pdo()->exec('ALTER TABLE questionarios ADD COLUMN tema_id INT NULL AFTER pesquisador_id, ADD KEY ix_questionarios_tema_id (tema_id), '
                 . 'ADD CONSTRAINT questionarios_ibfk_tema FOREIGN KEY (tema_id) REFERENCES temas (id)');
             $log[] = 'Coluna questionarios.tema_id criada (questionários existentes ficam sem tema).';
+        }
+        if (!self::columnExists('regras_classificacao', 'mensagem_aluno')) {
+            Db::pdo()->exec('ALTER TABLE regras_classificacao ADD COLUMN mensagem_aluno TEXT NULL AFTER descricao');
+            $log[] = 'Coluna regras_classificacao.mensagem_aluno criada (em branco = mensagem padrão ao aluno).';
+        }
+        if (!self::columnExists('questionarios', 'mostrar_retorno')) {
+            Db::pdo()->exec('ALTER TABLE questionarios ADD COLUMN mostrar_retorno TINYINT(1) NOT NULL DEFAULT 1 AFTER compartilhado_na_escola');
+            $log[] = 'Coluna questionarios.mostrar_retorno criada (alunos passam a ver um retorno ao concluir).';
+        }
+        if (!self::columnExists('resultados', 'nivel')) {
+            Db::pdo()->exec('ALTER TABLE resultados ADD COLUMN nivel VARCHAR(20) NULL AFTER classificacao_json, ADD KEY ix_resultados_nivel (nivel)');
+            $log[] = 'Coluna resultados.nivel criada; ' . ResultadoService::recalcularNiveis() . ' resultado(s) com situação preenchida.';
         }
         $corrigidos = 0;
         foreach (Db::all('SELECT id FROM questionarios') as $q) {

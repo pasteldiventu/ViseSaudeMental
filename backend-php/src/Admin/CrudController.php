@@ -62,6 +62,10 @@ final class CrudController
         }
         foreach ($res['list'] as $column) {
             $label = $res['fields'][$column]['label'] ?? $column;
+            if (!Records::sortable($res, $column)) {
+                $html .= '<th>' . View::e($label) . '</th>';
+                continue;
+            }
             $nextDir = ($sort === $column && $dir === 'ASC') ? 'desc' : 'asc';
             $arrow = $sort === $column ? ($dir === 'ASC' ? ' ▲' : ' ▼') : '';
             $html .= '<th><a href="' . View::e(Url::to("/admin/$key", array_merge($baseQuery, ['sort' => $column, 'dir' => $nextDir]))) . '">'
@@ -178,7 +182,9 @@ final class CrudController
             Auth::focar($ctx, $escolaDoRegistro);
         }
 
-        $html = '<div class="card"><dl class="details">';
+        $detalhe = isset($res['resultado']) ? ($res['resultado'])($row) : null;
+        $html = $detalhe === null ? '' : ResultadoView::detalhe($detalhe, $ctx);
+        $html .= '<div class="card">' . ($detalhe === null ? '' : '<h3>Registro</h3>') . '<dl class="details">';
         foreach ($res['fields'] as $name => $field) {
             if (!empty($field['virtual']) || ($field['detail'] ?? true) === false || $field['type'] === 'password') {
                 continue;
@@ -359,8 +365,14 @@ final class CrudController
         if ($type === 'bool') {
             return $value ? '<span class="badge badge-ok">Sim</span>' : '<span class="badge">Não</span>';
         }
+        if (($field['display'] ?? '') === 'nivel') {
+            return ResultadoView::selo($value === null || $value === '' ? null : (string) $value);
+        }
         if ($value === null || $value === '') {
             return '<span class="muted">—</span>';
+        }
+        if (($field['display'] ?? '') === 'resultado') {
+            return ResultadoView::classes((string) $value);
         }
         switch ($type) {
             case 'select':

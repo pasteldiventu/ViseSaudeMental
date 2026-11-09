@@ -12,6 +12,7 @@ import '../escola_foco.dart';
 import 'cadastro_form_screen.dart';
 import 'cadastro_icons.dart';
 import 'cadastro_lista_screen.dart';
+import 'resultado_aluno.dart';
 
 class CadastroDetalheScreen extends ConsumerStatefulWidget {
   const CadastroDetalheScreen({
@@ -164,6 +165,13 @@ class _CadastroDetalheScreenState extends ConsumerState<CadastroDetalheScreen> {
     }
   }
 
+  Future<void> _abrirRegistro(String key, int id) =>
+      Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => CadastroDetalheScreen(cadastroKey: key, id: id),
+        ),
+      );
+
   Future<void> _abrirLista(Relacionado rel) async {
     final menu = await ref.read(cadastrosMenuProvider.future);
     final meta = menu.cadastros[rel.key];
@@ -232,14 +240,23 @@ class _CadastroDetalheScreenState extends ConsumerState<CadastroDetalheScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
                 children: [
-                  Text(
-                    registro.titulo,
-                    style: GoogleFonts.figtree(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      height: 1.2,
+                  if (registro.resultado case final resultado?)
+                    ResultadoAlunoView(
+                      resultado: resultado,
+                      onAbrirAluno: () =>
+                          _abrirRegistro('alunos', resultado.alunoId),
+                      onAbrirAplicacao: () =>
+                          _abrirRegistro('aplicacoes', resultado.aplicacaoId),
+                    )
+                  else
+                    Text(
+                      registro.titulo,
+                      style: GoogleFonts.figtree(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        height: 1.2,
+                      ),
                     ),
-                  ),
                   if (widget.cadastroKey == 'questionarios') ...[
                     const SizedBox(height: 14),
                     FilledButton.icon(

@@ -12,6 +12,7 @@ use Vise\Admin\Resources;
 use Vise\Http\HttpError;
 use Vise\Http\Request;
 use Vise\Http\Response;
+use Vise\Services\ResultadoService;
 
 /**
  * Gestão pelo app (equipe): os mesmos cadastros, regras e escopo do painel web, em JSON.
@@ -54,6 +55,13 @@ final class CadastrosController
         $titles = Records::fkTitles($res, $rows, $res['list']);
         $rowTitles = Resources::titles($res['key'], array_map(static fn ($row) => (int) $row['id'], $rows));
 
+        $colunaNivel = null;
+        foreach ($res['list'] as $column) {
+            if (($res['fields'][$column]['display'] ?? '') === 'nivel') {
+                $colunaNivel = $column;
+            }
+        }
+
         $data = [];
         foreach ($rows as $row) {
             $id = (int) $row['id'];
@@ -61,7 +69,12 @@ final class CadastrosController
             foreach ($res['list'] as $column) {
                 $colunas[] = Records::text($res['fields'][$column] ?? ['type' => 'text'], $row[$column] ?? null, $titles[$column] ?? [], true);
             }
-            $data[] = ['id' => $id, 'titulo' => $rowTitles[$id] ?? '#' . $id, 'colunas' => $colunas];
+            $item = ['id' => $id, 'titulo' => $rowTitles[$id] ?? '#' . $id, 'colunas' => $colunas];
+            if ($colunaNivel !== null) {
+                $nivel = $row[$colunaNivel] ?? null;
+                $item['selo'] = ['nivel' => $nivel, 'texto' => ResultadoService::nivelRotulo($nivel)];
+            }
+            $data[] = $item;
         }
 
         $filtros = [];
@@ -131,6 +144,7 @@ final class CadastrosController
             'campos' => $campos,
             'relacionados' => Records::related($res, $row, $ctx),
             'acoes' => $editavel ? self::acoes($res, $ctx) : [],
+            'resultado' => isset($res['resultado']) ? ($res['resultado'])($row) : null,
         ]);
     }
 

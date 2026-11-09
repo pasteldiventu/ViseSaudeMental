@@ -7,6 +7,7 @@ namespace Vise\Admin;
 use PDOException;
 use Vise\Db;
 use Vise\Http\HttpError;
+use Vise\Services\ResultadoService;
 use Vise\Support\Str;
 
 /** Regras dos cadastros (permissão, escopo, validação, gravação) usadas pelo painel e pela API da equipe. */
@@ -91,7 +92,7 @@ final class Records
     public static function findRow(array $res, int $id, Ctx $ctx, bool $strict): array
     {
         [$where, $params] = Scope::where($res['key'], $ctx, $strict);
-        $row = Db::one("SELECT t.* FROM `{$res['table']}` t WHERE t.id = ? AND $where", array_merge([$id], $params));
+        $row = Db::one('SELECT ' . self::select($res) . " FROM `{$res['table']}` t WHERE t.id = ? AND $where", array_merge([$id], $params));
         if ($row === null) {
             throw new HttpError(404, 'Registro não encontrado ou fora do seu escopo.');
         }
@@ -155,25 +156,27 @@ final class Records
         if ($q !== '' && $res['search'] !== []) {
             $likes = [];
             foreach ($res['search'] as $column) {
-                $likes[] = "t.`$column` LIKE ?";
+                $likes[] = self::expr($res, $column) . ' LIKE ?';
                 $params[] = '%' . $q . '%';
                 if (($res['fields'][$column]['display'] ?? '') === 'cpf' && Str::digits($q) !== '') {
-                    $likes[] = "t.`$column` LIKE ?";
+                    $likes[] = self::expr($res, $column) . ' LIKE ?';
                     $params[] = '%' . Str::digits($q) . '%';
                 }
             }
             $where .= ' AND (' . implode(' OR ', $likes) . ')';
         }
 
-        $sort = is_string($query['sort'] ?? null) ? $query['sort'] : '';
+        $sort = is_string($query['sort'] ?? null) && self::sortable($res, $query['sort']) ? $query['sort'] : '';
         $dir = ($query['dir'] ?? '') === 'asc' ? 'ASC' : 'DESC';
-        $order = in_array($sort, $res['list'], true) ? "t.`$sort` $dir, t.id DESC" : ($res['order'] ?? 't.id DESC');
+        $order = $sort !== ''
+            ? ($res['fields'][$sort]['sort_sql'] ?? self::expr($res, $sort)) . " $dir, t.id DESC"
+            : ($res['order'] ?? 't.id DESC');
 
         $total = (int) Db::value("SELECT COUNT(*) FROM `{$res['table']}` t WHERE $where", $params);
         $pages = max(1, (int) ceil($total / $perPage));
         $page = min($pages, max(1, (int) ($query['page'] ?? 1)));
         $rows = Db::all(
-            "SELECT t.* FROM `{$res['table']}` t WHERE $where ORDER BY $order LIMIT $perPage OFFSET " . (($page - 1) * $perPage),
+            'SELECT ' . self::select($res) . " FROM `{$res['table']}` t WHERE $where ORDER BY $order LIMIT $perPage OFFSET " . (($page - 1) * $perPage),
             $params
         );
         return [
@@ -183,9 +186,34 @@ final class Records
             'pages' => $pages,
             'filters' => $filters,
             'q' => $q,
-            'sort' => in_array($sort, $res['list'], true) ? $sort : '',
+            'sort' => $sort,
             'dir' => $dir,
         ];
+    }
+
+    /** Coluna da lista que aceita ordenação (campos com 'sort' => false não aceitam). */
+    public static function sortable(array $res, string $column): bool
+    {
+        return in_array($column, $res['list'], true) && ($res['fields'][$column]['sort'] ?? true) !== false;
+    }
+
+    /** Colunas da tabela mais as calculadas ('sql'), que chegam na linha com o nome do campo. */
+    private static function select(array $res): string
+    {
+        $select = 't.*';
+        foreach ($res['fields'] as $name => $field) {
+            if (isset($field['sql'])) {
+                $select .= ', (' . $field['sql'] . ") AS `$name`";
+            }
+        }
+        return $select;
+    }
+
+    /** Expressão SQL (alias t) de uma coluna, real ou calculada. */
+    private static function expr(array $res, string $column): string
+    {
+        $sql = $res['fields'][$column]['sql'] ?? null;
+        return $sql === null ? "t.`$column`" : "($sql)";
     }
 
     /**
@@ -216,7 +244,7 @@ final class Records
     {
         $related = [];
         foreach (Resources::all() as $childKey => $child) {
-            if (!$ctx->canAccess($child['perm'])) {
+            if (!$ctx->canAccess($child['perm']) || ($child['relacionado'] ?? true) === false) {
                 continue;
             }
             foreach ($child['fields'] as $name => $field) {
@@ -506,6 +534,9 @@ final class Records
         }
         if ($value === null || $value === '') {
             return '—';
+        }
+        if (($field['display'] ?? '') === 'resultado') {
+            return ResultadoService::resumoTexto((string) $value);
         }
         switch ($type) {
             case 'select':
